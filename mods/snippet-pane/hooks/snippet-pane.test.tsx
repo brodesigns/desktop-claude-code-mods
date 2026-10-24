@@ -82,7 +82,7 @@ test('a wrong syntax or a refusing store saves nothing and says so', async ($, o
 })
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`the pane on ${surface}: empty, filled, expand, insert, delete, save`, async ($, on) => {
+  test(`the pane on ${surface}: one line each, open, insert, delete, save`, async ($, on) => {
     const store = world(on)
     const filled: { text: string; mode: string }[] = []
     on('prompt.fill', (_, e) => {
@@ -100,37 +100,30 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     for (const bodyColumns of [36, 90]) {
       const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface })
-      expect((await ui.find({ type: 'Text', text: /8 more lines/ })) != null).toBe(true)
-      expect((await ui.find({ type: 'Text', text: /⚠/ })) != null).toBe(true)
+      expect((await ui.find({ type: 'Text', text: /Long/ })) != null).toBe(true)
+      expect((await ui.find({ type: 'Text', text: /ts ⚠/ })) != null).toBe(true)
+      // Closed: no code in the tree.
+      expect((await ui.find({ type: 'Text', text: /Line 1 with/ })) == null).toBe(true)
       await ui.unmount()
     }
 
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Code' }))?.text).toBe(LONG.split('\n').slice(0, 4).join('\n'))
-    await ui.press({ key: 'more-1' })
-    expect((await ui.find({ type: 'Code' }))?.text).toBe(LONG)
+    await ui.press({ key: 'open-1' })
+    expect((await ui.find({ type: 'Text', text: /Line 12 with/ })) != null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /12 lines/ })) != null).toBe(true)
 
     await ui.press({ key: 'ins-2' })
     expect(filled[0]).toEqual({ text: '```ts\nconst k = "[secret removed]"\n```\n', mode: 'insert' })
-
-    await ui.press({ key: 'lang-ts' })
-    expect((await ui.findAll({ type: 'Code' })).length).toBe(1)
-    await ui.press({ key: 'lang-all' })
 
     await ui.press({ key: 'rm-1' })
     expect((store[KEY] as { id: number }[]).map(s => s.id)).toEqual([2])
     expect((await ui.find({ type: 'Text', text: /"Long" deleted/ })) != null).toBe(true)
 
+    // The field for a new snippet only exists after "＋ new".
+    expect((await ui.find({ type: 'Input' })) == null).toBe(true)
+    await ui.press({ key: 'new' })
     await ui.input({ key: 'new-input', text: 'Fresh\nnpm run build' })
     expect((store[KEY] as { title: string; lang: string }[])[1]).toMatchObject({ title: 'Fresh', lang: 'sh' })
     await ui.unmount()
   })
 }
-
-test('the preview length follows userConfig', { options: { previewLines: 2 } }, async ($, on) => {
-  world(on, { [KEY]: [snip(1, 'Long', 'sh', LONG)] })
-  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
-  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /10 more lines/ })) != null).toBe(true)
-  await ui.unmount()
-})

@@ -5,18 +5,16 @@ import type { Snippet, SnippetLib, SnippetNote } from '../types'
 import { redactCounted } from './keys'
 import { isNarrow } from './layout'
 import { projectOf } from './project'
-import { asList, lineCount, parseSnippet, preview } from './snippets'
-import { actions, card, cardHead, chip, emptyState, legend, note, sectionTitle, SPACE, TYPE } from './style'
+import { asList, lineCount, parseSnippet } from './snippets'
+import { actions, emptyState, note, SPACE, TYPE } from './style'
 
 const PANE = 'snippet-pane'
 
 const lib = atom({ plugin: 'snippet-pane', key: 'snippetLib' } as const, null)
 const openIds = atom({ plugin: 'snippet-pane', key: 'snippetOpen' } as const, [])
 const lastNote = atom({ plugin: 'snippet-pane', key: 'snippetNote' } as const, null)
-const langFilter = atom({ plugin: 'snippet-pane', key: 'snippetLang' } as const, '')
-
-// From userConfig; a reload brings a changed value.
-let previewLines = 4
+// Whether the field for a new snippet is open; closed, the pane is just the list.
+const creating = atom({ plugin: 'snippet-pane', key: 'snippetNew' } as const, false)
 
 // Loads the project's snippets; again when the project root moved or `force` asks.
 async function ensure($: EngineInterface, force = false): Promise<SnippetLib> {
@@ -102,10 +100,7 @@ async function saveFromPane($: EngineInterface, value: string) {
   await say($, answer.text, answer.tone)
 }
 
-export const register: Register = (on, options) => {
-  const wanted = Number((options as Record<string, unknown>).previewLines ?? 4)
-  previewLines = Number.isFinite(wanted) ? Math.min(30, Math.max(1, Math.round(wanted))) : 4
-
+export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'snippet', description: 'Save a code snippet for this project: /snippet <title> then the code on the next lines, or /snippet <title> | <code>', argumentHint: '<title> | <code>' })
     await $.command.register({ name: 'snippets', description: 'Open the snippet pane of this project' })
@@ -135,85 +130,73 @@ export const register: Register = (on, options) => {
 
 export async function view($: EngineInterface, e: RenderInput) {
   const ui = $.ui.resolve(e)
-  const { Box, Button, Code, Text } = ui
+  const { Box, Button, Text } = ui
   const narrow = isNarrow(e)
   const data = await read($, lib)
   const open = await read($, openIds)
   const told = await read($, lastNote)
-  const filter = await read($, langFilter)
+  const isCreating = await read($, creating)
 
   if (data === null) return emptyState(ui, 'loading', '⌗', 'Loading snippets …')
 
-  const langs = [...new Set(data.list.map(s => s.lang))]
-  const shown = filter === '' || !langs.includes(filter) ? data.list : data.list.filter(s => s.lang === filter)
-
+  // One line per snippet: the title opens it, `↳` inserts it. Code, copy and delete only when opened.
   const row = (s: Snippet) => {
     const isOpen = open.includes(s.id)
     const total = lineCount(s.code)
-    const hidden = isOpen ? 0 : Math.max(0, total - previewLines)
 
-    return card(ui, `card-${s.id}`, s.masked > 0 ? 'warning' : 'neutral', [
-      cardHead(
-        ui,
-        `head-${s.id}`,
-        s.title,
-        <Box key={`tags-${s.id}`} gap={SPACE.tight}>
-          {s.masked > 0 && chip(ui, `masked-${s.id}`, narrow ? '⚠' : '⚠ redacted', 'warning')}
-          {chip(ui, `lang-${s.id}`, s.lang, 'info')}
-        </Box>,
-      ),
-      <Box key={`code-${s.id}`} minWidth={0} overflow="hidden">
-        <Code source={isOpen ? s.code : preview(s.code, previewLines)} language={s.lang === 'text' ? undefined : s.lang} wrap={isOpen ? 'wrap' : 'truncate-end'} />
-      </Box>,
-      hidden > 0 ? (
-        <Text key={`hidden-${s.id}`} dimColor size={TYPE.label}>
-          … {hidden} {hidden === 1 ? 'more line' : 'more lines'}
-        </Text>
-      ) : null,
-      actions(ui, `act-${s.id}`, [
-        <Button key={`ins-${s.id}`} label="↳ insert" variant="primary" onPress={press => insert($, s, press.surface)} />,
-        total > previewLines ? (
-          <Button key={`more-${s.id}`} label={isOpen ? '▾ less' : narrow ? '▸ all' : `▸ all ${total} lines`} variant="secondary" onPress={() => update($, openIds, ids => (ids.includes(s.id) ? ids.filter(i => i !== s.id) : [...ids, s.id]))} />
-        ) : null,
-        <Button key={`copy-${s.id}`} label="⧉ copy" variant="secondary" onPress={press => copy($, s, press.surface)} />,
-        <Button key={`rm-${s.id}`} label="✕ delete" variant="secondary" onPress={() => remove($, s)} />,
-      ]),
-    ])
+    return (
+      <Box key={`snip-${s.id}`} flexDirection="column" gap={SPACE.tight}>
+        <Box alignItems="center" gap={SPACE.base}>
+          <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+            <Button key={`open-${s.id}`} plain onPress={() => update($, openIds, ids => (ids.includes(s.id) ? ids.filter(i => i !== s.id) : [...ids, s.id]))}>
+              <Text size={TYPE.body} wrap="truncate">{`${isOpen ? '▾' : '▸'} ${s.title}`}</Text>
+              <Text size={TYPE.label} dimColor>{`  ${s.lang}${s.masked > 0 ? ' ⚠' : ''}`}</Text>
+            </Button>
+          </Box>
+          <Box flexShrink={0}>
+            <Button key={`ins-${s.id}`} plain onPress={press => insert($, s, press.surface)}>
+              <Text size={TYPE.body} color="#39639E" weight="semibold">↳</Text>
+            </Button>
+          </Box>
+        </Box>
+        {isOpen && (
+          <Box key={`body-${s.id}`} flexDirection="column" gap={SPACE.tight} marginLeft="md" minWidth={0} overflow="hidden">
+            <Text mono size={TYPE.label} wrap="wrap">{s.code}</Text>
+            {actions(ui, `act-${s.id}`, [
+              <Button key={`copy-${s.id}`} label="⧉ copy" variant="secondary" onPress={press => copy($, s, press.surface)} />,
+              <Button key={`rm-${s.id}`} label="✕ delete" variant="secondary" onPress={() => remove($, s)} />,
+            ])}
+            <Text dimColor size={TYPE.label}>{`${total} ${total === 1 ? 'line' : 'lines'}${s.masked > 0 ? ' · keys redacted' : ''}`}</Text>
+          </Box>
+        )}
+      </Box>
+    )
   }
 
   return (
     <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
       <Box justifyContent="space-between" alignItems="center" gap={SPACE.base}>
         <Box flexShrink={0}>
-          <Text size={TYPE.heading} weight="semibold">Snippets</Text>
+          <Text size={TYPE.title} weight="semibold">Snippets</Text>
         </Box>
-        <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end">
-          <Text dimColor size={TYPE.label} wrap="truncate">
-            ▣ {data.project} · {data.list.length}
-          </Text>
+        <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end" gap={SPACE.base}>
+          <Text dimColor size={TYPE.label} wrap="truncate">{`▣ ${data.project} · ${data.list.length}`}</Text>
+          <Button key="new" plain onPress={() => update($, creating, v => !v)}>
+            <Text size={TYPE.label} color="#39639E" weight="semibold">{isCreating ? '✕' : '＋ new'}</Text>
+          </Button>
         </Box>
       </Box>
 
-      {langs.length > 1 &&
-        actions(ui, 'langs', [
-          <Button key="lang-all" label={`All ${data.list.length}`} variant={shown === data.list ? 'primary' : 'secondary'} onPress={() => update($, langFilter, () => '')} />,
-          ...langs.map(l => (
-            <Button key={`lang-${l}`} label={`${l} ${data.list.filter(s => s.lang === l).length}`} variant={filter === l ? 'primary' : 'secondary'} onPress={() => update($, langFilter, () => l)} />
-          )),
-        ])}
-
+      {isCreating &&
+        ('Input' in ui ? (
+          <ui.Input key="new-input" placeholder="Title on the first line, code below (or: title | code)" submitLabel="save" rows={narrow ? 4 : 6} onSubmit={(v: string) => saveFromPane($, v)} />
+        ) : (
+          <Text dimColor size={TYPE.label} wrap="wrap">{'No input field here: use /snippet <title> | <code>.'}</Text>
+        ))}
       {told !== null && note(ui, 'note', told.text, told.tone)}
 
-      {data.list.length === 0 && emptyState(ui, 'empty', '⌗', `No snippets for ${data.project} yet. /snippet <title> and the code from the next line on.`)}
-      {shown.map(row)}
-
-      {sectionTitle(ui, 'sec-new', 'New snippet')}
-      {'Input' in ui ? (
-        <ui.Input key="new-input" placeholder="Title on the first line, code below (or: title | code)" submitLabel="save" rows={narrow ? 4 : 6} onSubmit={(v: string) => saveFromPane($, v)} />
-      ) : (
-        <Text dimColor size={TYPE.label} wrap="wrap">{'No input field here: use /snippet <title> | <code>.'}</Text>
-      )}
-      {legend(ui, 'legend', 'Language from ```language or guessed. Keys and passwords are redacted before saving. "insert" puts the code as a block at the cursor of the prompt box.')}
+      {data.list.length === 0 && emptyState(ui, 'empty', '⌗', `No snippets for ${data.project} yet. Tap "＋ new" or /snippet <title> | <code>.`)}
+      {data.list.map(row)}
     </Box>
   )
 }

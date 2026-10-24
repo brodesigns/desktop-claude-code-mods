@@ -5,9 +5,9 @@ import type { Prompt, PromptLib, PromptNote, PromptScope } from '../types'
 import { shortHash } from './hash'
 import { redactCounted } from './keys'
 import { isNarrow } from './layout'
-import { asList, compose, fillIn, findByName, firstLine, idOf, parseSave, placeholders, upsert } from './library'
+import { asList, compose, fillIn, findByName, idOf, parseSave, placeholders, upsert } from './library'
 import { projectOf } from './project'
-import { actions, card, cardHead, chip, emptyState, legend, line, note, sectionTitle, SPACE, TYPE } from './style'
+import { actions, emptyState, note, SPACE, TYPE } from './style'
 
 const PANE = 'prompt-library'
 const GLOBAL_KEY = 'prompts:global'
@@ -17,6 +17,8 @@ const query = atom({ plugin: 'prompt-library', key: 'promptQuery' } as const, ''
 const openId = atom({ plugin: 'prompt-library', key: 'promptOpen' } as const, '')
 const lastNote = atom({ plugin: 'prompt-library', key: 'promptNote' } as const, null)
 const values = atom({ plugin: 'prompt-library', key: 'promptValues' } as const, {})
+// Whether the field for a new prompt is open; closed, the pane is just the list.
+const creating = atom({ plugin: 'prompt-library', key: 'promptNew' } as const, false)
 const newScope = atom({ plugin: 'prompt-library', key: 'promptScope' } as const, 'global')
 
 // Loads the global list and the project's list; again when the project root moved or `force` asks.
@@ -191,6 +193,9 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => view($, e))
 }
 
+// The search field only appears from this many prompts on; a short list needs none.
+const SEARCH_FROM = 6
+
 export async function view($: EngineInterface, e: RenderInput) {
   const ui = $.ui.resolve(e)
   const { Box, Button, Text } = ui
@@ -201,96 +206,105 @@ export async function view($: EngineInterface, e: RenderInput) {
   const told = await read($, lastNote)
   const typed = await read($, values)
   const scope = await read($, newScope)
+  const isCreating = await read($, creating)
   const hasInput = 'Input' in ui
 
   if (data === null) return emptyState(ui, 'loading', '❝', 'Loading prompts …')
 
   const needle = q.trim().toLowerCase()
   const hits = (list: Prompt[]) => (needle === '' ? list : list.filter(p => `${p.name}\n${p.text}`.toLowerCase().includes(needle)))
-  const local = hits(data.local)
-  const global = hits(data.global)
+  const shown = [...hits(data.local).map(p => ({ p, where: 'project' as PromptScope })), ...hits(data.global).map(p => ({ p, where: 'global' as PromptScope }))]
   const total = data.local.length + data.global.length
 
+  // One line per prompt: the name opens it, `↳` uses it. Text, placeholders, copy, send and delete only when opened.
   const row = (p: Prompt, where: PromptScope) => {
     const isOpen = open === p.id
     const holes = placeholders(p.text)
     const hid = shortHash(p.id)
 
-    return card(ui, `card-${hid}`, isOpen ? 'accent' : 'neutral', [
-      cardHead(ui, `head-${hid}`, p.name, chip(ui, `scope-${hid}`, where === 'global' ? '◆ global' : '▣ project', where === 'global' ? 'info' : 'accent')),
-      isOpen ? (
-        <Box key={`full-${hid}`} minWidth={0} overflow="hidden">
-          <Text size={TYPE.body} wrap="wrap">{p.text}</Text>
+    return (
+      <Box key={`prompt-${hid}`} flexDirection="column" gap={SPACE.tight}>
+        <Box alignItems="center" gap={SPACE.base}>
+          <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+            <Button key={`open-${hid}`} plain onPress={() => update($, openId, cur => (cur === p.id ? '' : p.id))}>
+              <Text size={TYPE.body} wrap="truncate">{`${isOpen ? '▾' : '▸'} ${p.name}`}</Text>
+              <Text size={TYPE.label} dimColor>{where === 'project' ? '  ▣' : ''}</Text>
+            </Button>
+          </Box>
+          <Box flexShrink={0}>
+            <Button key={`use-${hid}`} plain onPress={press => usePrompt($, p, press.surface)}>
+              <Text size={TYPE.body} color="#39639E" weight="semibold">↳</Text>
+            </Button>
+          </Box>
         </Box>
-      ) : (
-        line(ui, `first-${hid}`, firstLine(p.text))
-      ),
-      isOpen && holes.length > 0 && hasInput ? (
-        <Box key={`holes-${hid}`} flexDirection="column" gap={SPACE.tight}>
-          {holes.map((hole, i) => (
-            <ui.Input
-              key={`val-${hid}-${i}`}
-              label={`{{${hole}}}`}
-              value={typed[`${p.id}:${hole}`] ?? ''}
-              placeholder="Value"
-              submitLabel="apply"
-              onInput={(v: string) => void update($, values, all => ({ ...all, [`${p.id}:${hole}`]: v }))}
-              onSubmit={(v: string) => void update($, values, all => ({ ...all, [`${p.id}:${hole}`]: v }))}
-            />
-          ))}
-        </Box>
-      ) : null,
-      actions(ui, `act-${hid}`, [
-        <Button key={`use-${hid}`} label="↳ use" variant="primary" onPress={press => usePrompt($, p, press.surface)} />,
-        <Button key={`more-${hid}`} label={isOpen ? '▾ less' : narrow ? '▸ more' : '▸ full text'} variant="secondary" onPress={() => update($, openId, cur => (cur === p.id ? '' : p.id))} />,
-        isOpen ? <Button key={`copy-${hid}`} label="⧉ copy" variant="secondary" onPress={press => copyPrompt($, p, press.surface)} /> : null,
-        isOpen ? <Button key={`send-${hid}`} label="↵ send" variant="secondary" onPress={() => sendPrompt($, p)} /> : null,
-        <Button key={`rm-${hid}`} label="✕ delete" variant="secondary" onPress={() => removePrompt($, p, where)} />,
-      ]),
-    ])
+        {isOpen && (
+          <Box key={`body-${hid}`} flexDirection="column" gap={SPACE.tight} marginLeft="md" minWidth={0} overflow="hidden">
+            <Text size={TYPE.label} wrap="wrap">{p.text}</Text>
+            {holes.length > 0 && hasInput && (
+              <Box key={`holes-${hid}`} flexDirection="column" gap={SPACE.tight}>
+                {holes.map((hole, i) => (
+                  <ui.Input
+                    key={`val-${hid}-${i}`}
+                    label={`{{${hole}}}`}
+                    value={typed[`${p.id}:${hole}`] ?? ''}
+                    placeholder="Value"
+                    submitLabel="apply"
+                    onInput={(v: string) => void update($, values, all => ({ ...all, [`${p.id}:${hole}`]: v }))}
+                    onSubmit={(v: string) => void update($, values, all => ({ ...all, [`${p.id}:${hole}`]: v }))}
+                  />
+                ))}
+              </Box>
+            )}
+            {actions(ui, `act-${hid}`, [
+              <Button key={`copy-${hid}`} label="⧉ copy" variant="secondary" onPress={press => copyPrompt($, p, press.surface)} />,
+              <Button key={`send-${hid}`} label="↵ send" variant="secondary" onPress={() => sendPrompt($, p)} />,
+              <Button key={`rm-${hid}`} label="✕ delete" variant="secondary" onPress={() => removePrompt($, p, where)} />,
+            ])}
+          </Box>
+        )}
+      </Box>
+    )
   }
 
   return (
     <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
       <Box justifyContent="space-between" alignItems="center" gap={SPACE.base}>
-        <Box flexShrink={1} minWidth={0} overflow="hidden">
-          <Text size={TYPE.heading} weight="semibold" wrap="truncate">Prompts</Text>
-        </Box>
         <Box flexShrink={0}>
-          <Text dimColor size={TYPE.label}>{needle === '' ? `${total} saved` : `${local.length + global.length} of ${total}`}</Text>
+          <Text size={TYPE.title} weight="semibold">Prompts</Text>
+        </Box>
+        <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end" gap={SPACE.base}>
+          <Text dimColor size={TYPE.label} wrap="truncate">{needle === '' ? `${total}` : `${shown.length} of ${total}`}</Text>
+          <Button key="new" plain onPress={() => update($, creating, v => !v)}>
+            <Text size={TYPE.label} color="#39639E" weight="semibold">{isCreating ? '✕' : '＋ new'}</Text>
+          </Button>
         </Box>
       </Box>
 
-      {hasInput ? (
-        <ui.Input key="search" label="Search" placeholder="Name or text …" value={q} submitLabel="search" onInput={(v: string) => void update($, query, () => v)} onSubmit={(v: string) => void update($, query, () => v)} />
-      ) : (
-        <Text dimColor size={TYPE.label}>{'Search: /prompts <word>'}</Text>
-      )}
+      {(total >= SEARCH_FROM || needle !== '') &&
+        (hasInput ? (
+          <ui.Input key="search" placeholder="Search name or text …" value={q} submitLabel="search" onInput={(v: string) => void update($, query, () => v)} onSubmit={(v: string) => void update($, query, () => v)} />
+        ) : (
+          <Text dimColor size={TYPE.label}>{'Search: /prompts <word>'}</Text>
+        ))}
       {needle !== '' && actions(ui, 'search-act', [<Button key="clear" label="✕ Clear search" variant="secondary" onPress={() => update($, query, () => '')} />])}
 
+      {isCreating &&
+        (hasInput ? (
+          <Box key="new-box" flexDirection="column" gap={SPACE.tight}>
+            {actions(ui, 'new-scope', [
+              <Button key="scope-global" label="◆ all projects" variant={scope === 'global' ? 'primary' : 'secondary'} onPress={() => update($, newScope, () => 'global')} />,
+              <Button key="scope-project" label={`▣ only ${data.project}`} variant={scope === 'project' ? 'primary' : 'secondary'} onPress={() => update($, newScope, () => 'project')} />,
+            ])}
+            <ui.Input key="new-input" placeholder="name: text of the prompt" submitLabel="save" rows={narrow ? 2 : 3} onSubmit={(v: string) => saveFromPane($, v)} />
+          </Box>
+        ) : (
+          <Text dimColor size={TYPE.label} wrap="wrap">{'No input field here: use /prompt-save <name>: <text>.'}</Text>
+        ))}
       {told !== null && note(ui, 'note', told.text, told.tone)}
 
-      {total === 0 && emptyState(ui, 'empty', '❝', 'No prompts yet. /prompt-save review: Check {{file}} for errors. With --project for this project only.')}
-      {total > 0 && local.length + global.length === 0 && emptyState(ui, 'no-hits', '⌕', `Nothing found for "${q.trim()}".`)}
-
-      {local.length > 0 && sectionTitle(ui, 'sec-local', `Only ${data.project}`, <Text dimColor size={TYPE.label}>{local.length}</Text>)}
-      {local.map(p => row(p, 'project'))}
-      {global.length > 0 && sectionTitle(ui, 'sec-global', 'All projects', <Text dimColor size={TYPE.label}>{global.length}</Text>)}
-      {global.map(p => row(p, 'global'))}
-
-      {sectionTitle(ui, 'sec-new', 'New prompt')}
-      {hasInput ? (
-        <Box key="new" flexDirection="column" gap={SPACE.tight}>
-          {actions(ui, 'new-scope', [
-            <Button key="scope-global" label="◆ all projects" variant={scope === 'global' ? 'primary' : 'secondary'} onPress={() => update($, newScope, () => 'global')} />,
-            <Button key="scope-project" label={`▣ only ${data.project}`} variant={scope === 'project' ? 'primary' : 'secondary'} onPress={() => update($, newScope, () => 'project')} />,
-          ])}
-          <ui.Input key="new-input" placeholder="name: text of the prompt" submitLabel="save" rows={narrow ? 2 : 3} onSubmit={(v: string) => saveFromPane($, v)} />
-        </Box>
-      ) : (
-        <Text dimColor size={TYPE.label} wrap="wrap">{'No input field here: use /prompt-save <name>: <text>.'}</Text>
-      )}
-      {legend(ui, 'legend', '"use" puts the prompt into the prompt box without sending it. {{name}} marks a placeholder that is asked for first. Also via /p <name> [value | value].')}
+      {total === 0 && emptyState(ui, 'empty', '❝', 'No prompts yet. Tap "＋ new" or /prompt-save review: Check {{file}} for errors.')}
+      {total > 0 && shown.length === 0 && emptyState(ui, 'no-hits', '⌕', `Nothing found for "${q.trim()}".`)}
+      {shown.map(({ p, where }) => row(p, where))}
     </Box>
   )
 }

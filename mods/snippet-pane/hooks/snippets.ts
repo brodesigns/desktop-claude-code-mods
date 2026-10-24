@@ -82,6 +82,3 @@ export const asList = (value: unknown): Snippet[] =>
     : []
 
 export const lineCount = (code: string) => code.split('\n').length
-
-// The first lines for the preview.
-export const preview = (code: string, lines: number) => code.split('\n').slice(0, Math.max(1, lines)).join('\n')

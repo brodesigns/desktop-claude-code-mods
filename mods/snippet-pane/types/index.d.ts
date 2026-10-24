@@ -9,7 +9,7 @@ declare module 'claude-code' {
       snippetLib: SnippetLib | null
       snippetOpen: number[]
       snippetNote: SnippetNote | null
-      snippetLang: string
+      snippetNew: boolean
     }
   }
 }

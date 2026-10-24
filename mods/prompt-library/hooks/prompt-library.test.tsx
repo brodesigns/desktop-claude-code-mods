@@ -139,8 +139,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     for (const bodyColumns of [36, 90]) {
       const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface })
-      expect((await ui.find({ type: 'Text', text: /2 saved/ })) != null).toBe(true)
-      expect((await ui.find({ type: 'Text', text: /Only demo/ })) != null).toBe(true)
+      expect((await ui.find({ type: 'Text', text: /^2$/ })) != null).toBe(true)
+      expect((await ui.find({ type: 'Text', text: /▣/ })) != null).toBe(true)
       await ui.unmount()
     }
 
@@ -159,16 +159,16 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: `use-${review}` })
     expect(filled[1]).toBe('Check src/app.ts thoroughly.')
 
-    // Search narrows the list.
-    await ui.input({ key: 'search', text: 'three', kind: 'change' })
-    expect((await ui.find({ type: 'Text', text: /1 of 2/ })) != null).toBe(true)
-    await ui.press({ key: 'clear' })
+    // A short list has no search field.
+    expect((await ui.find({ type: 'Input', text: /Search/ })) == null).toBe(true)
 
+    await ui.press({ key: `open-${short}` })
     await ui.press({ key: `rm-${short}` })
     expect(store[PROJECT_KEY]).toEqual([])
-    expect((await ui.find({ type: 'Text', text: /1 saved/ })) != null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /^1$/ })) != null).toBe(true)
 
-    // Saving from the pane's own field, for this project.
+    // Saving from the pane's own field, for this project; the field opens with "＋ new".
+    await ui.press({ key: 'new' })
     await ui.press({ key: 'scope-project' })
     await ui.input({ key: 'new-input', text: 'fresh: A new prompt' })
     expect((store[PROJECT_KEY] as { name: string }[])[0]?.name).toBe('fresh')

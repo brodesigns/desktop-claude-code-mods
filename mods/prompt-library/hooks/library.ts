@@ -58,8 +58,6 @@ export const fillIn = (text: string, values: Record<string, string>) =>
   })
 
 
-export const firstLine = (text: string) => text.split('\n').find(l => l.trim() !== '')?.trim() ?? ''
-
 // `/p <name> [value1 | value2]`: the longest saved name the arguments start with, project prompts first.
 export const findByName = (prompts: Prompt[], args: string): { prompt: Prompt; rest: string } | undefined => {
   const typed = args.trim()

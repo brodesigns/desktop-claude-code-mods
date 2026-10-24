@@ -13,6 +13,7 @@ declare module 'claude-code' {
       promptNote: PromptNote | null
       promptValues: Record<string, string>
       promptScope: PromptScope
+      promptNew: boolean
     }
   }
 }

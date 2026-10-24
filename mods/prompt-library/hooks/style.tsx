@@ -20,68 +20,9 @@ export const TONE: Record<Tone, string> = {
   accent: 'claude',
   info: 'suggestion',
 }
-// Borders: a calm card is `subtle`, only a real problem gets its colour.
-const BORDER: Record<Tone, string> = { ...TONE, neutral: 'subtle' }
 
 // A status mark next to every colour: status is never colour alone.
 export const MARK: Record<Tone, string> = { neutral: '○', success: '✓', warning: '●', error: '✗', accent: '◆', info: '●' }
-
-// One entry in a rounded card. Neutral draws the calm `subtle` border.
-export const card = (ui: Ui, key: string, tone: Tone, children: Children) => {
-  const { Box } = ui
-
-  return (
-    <Box key={key} flexDirection="column" borderStyle="round" overflow="hidden" borderColor={BORDER[tone]} paddingX="sm" paddingY="xs" gap={SPACE.tight}>
-      {children as never}
-    </Box>
-  )
-}
-
-// The first row of a card: a title that gives way on the left, fixed side info on the right.
-export const cardHead = (ui: Ui, key: string, title: Children, side?: Children) => {
-  const { Box, Text } = ui
-
-  return (
-    <Box key={key} justifyContent="space-between" alignItems="center" gap={SPACE.base}>
-      <Box flexShrink={1} minWidth={0} overflow="hidden">
-        <Text size={TYPE.title} weight="semibold" wrap="truncate">{title as never}</Text>
-      </Box>
-      {side !== undefined && side !== null && side !== false && <Box flexShrink={0}>{side as never}</Box>}
-    </Box>
-  )
-}
-
-// One line of text that never runs past the border.
-export const line = (ui: Ui, key: string, value: string, opts: { dim?: boolean; mono?: boolean } = {}) => {
-  const { Box, Text } = ui
-
-  return (
-    <Box key={key} minWidth={0} overflow="hidden">
-      <Text dimColor={opts.dim ?? true} mono={opts.mono} size={TYPE.body} wrap="truncate">{value}</Text>
-    </Box>
-  )
-}
-
-// A small coloured label with its mark: `◆ global`.
-export const chip = (ui: Ui, key: string, label: string, tone: Tone) => {
-  const { Text } = ui
-
-  return <Text key={key} color={TONE[tone]} size={TYPE.label} weight="semibold">{label}</Text>
-}
-
-// A section heading with an optional count or note on the right.
-export const sectionTitle = (ui: Ui, key: string, title: string, side?: Children) => {
-  const { Box, Text } = ui
-
-  return (
-    <Box key={key} justifyContent="space-between" alignItems="center" gap={SPACE.base} marginTop="xs">
-      <Box flexShrink={1} minWidth={0} overflow="hidden">
-        <Text size={TYPE.body} weight="semibold" wrap="truncate">{title}</Text>
-      </Box>
-      {side !== undefined && side !== null && side !== false && <Box flexShrink={0}>{side as never}</Box>}
-    </Box>
-  )
-}
 
 // Nothing to show: one symbol, one short sentence, in a calm card.
 export const emptyState = (ui: Ui, key: string, icon: string, sentence: string) => {
@@ -121,13 +62,3 @@ export const actions = (ui: Ui, key: string, children: Children) => {
   )
 }
 
-// Legend at the very bottom.
-export const legend = (ui: Ui, key: string, value: string) => {
-  const { Box, Text } = ui
-
-  return (
-    <Box key={key} minWidth={0} overflow="hidden" marginTop="xs">
-      <Text dimColor size={TYPE.label} wrap="wrap">{value}</Text>
-    </Box>
-  )
-}

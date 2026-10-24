@@ -39,8 +39,8 @@ Bands appear only when there is something to show, and they stack.
 
 | Mod | What it does |
 |---|---|
-| [`prompt-library`](mods/prompt-library) | Saved prompts for all projects or just this one, with search and placeholders, inserted into the prompt box with `/p` |
-| [`snippet-pane`](mods/snippet-pane) | Code snippets per project with language, preview, insert and copy; secrets are redacted |
+| [`prompt-library`](mods/prompt-library) | Light list of saved prompts for all projects or just this one, with placeholders, inserted into the prompt box with `/p` |
+| [`snippet-pane`](mods/snippet-pane) | Light list of code snippets per project, one line each, with insert, copy and delete; secrets are redacted |
 | [`todo-md-pane`](mods/todo-md-pane) | Open items of the project's `todo.md` as a checklist; ticking an item removes its line from the file, with undo |
 | [`kanban-pane`](mods/kanban-pane) | Small kanban board per project with open, in progress and done columns |
 | [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search |
