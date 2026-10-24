@@ -56,17 +56,6 @@ def text_center(d, cx, cy, txt, size, fill):
 
 WHITE = (250, 248, 255)
 
-# todo-band: a checklist card, two done and one open
-img = base((74, 46, 14), (38, 22, 8), (242, 193, 78))
-card(img, (430, 380, 1618, 1668), 190, WHITE)
-d = ImageDraw.Draw(img)
-for i, (done, w) in enumerate([(True, 620), (True, 520), (False, 700)]):
-    y = 560 + i * 330
-    d.rounded_rectangle((540, y - 80, 700, y + 80), radius=34, outline=(242, 160, 40), width=26, fill=(242, 160, 40) if done else None)
-    if done:
-        check(d, 620, y + 4, 90, WHITE, 26)
-    d.rounded_rectangle((780, y - 28, 780 + w, y + 28), radius=28, fill=(120, 100, 80) if done else (60, 44, 24))
-finish(img, "todo-band")
 
 # branch-guard-band: git branch graph with a warning triangle
 img = base((86, 26, 40), (42, 12, 22), (255, 107, 107))

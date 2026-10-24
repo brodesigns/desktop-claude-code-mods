@@ -50,6 +50,23 @@ async function start($: EngineInterface) {
   timer = $.clock.every(TICK_MS, () => void refresh($))
 }
 
+// Opens a folder, file or address with the system's opener. Argument vector, no shell: the target is never parsed.
+async function openTarget($: EngineInterface, args: string[]) {
+  for (const program of ['open', 'xdg-open']) {
+    try {
+      // xdg-open has no reveal flag: it opens the folder of the file instead.
+      const argv = program === 'open' ? [program, ...args] : [program, args[args.length - 1] ?? '']
+      const res = await $.process.run(argv, { timeoutMs: 5_000 })
+      if (res.exitCode === 0) return
+    } catch {
+      // This opener is not there; the next one tries.
+    }
+  }
+  $.ui.toast(`Could not open ${args[args.length - 1] ?? ''}`)
+}
+
+const USAGE_URL = 'https://claude.ai/settings/usage'
+
 export const register: Register = (on, options) => {
   const threshold = Number(options.threshold ?? 50)
   settings = {
@@ -99,7 +116,7 @@ export const register: Register = (on, options) => {
 
             return (
               <Box key={`lim-${r.kind}`} flexShrink={1} minWidth={0} overflow="hidden">
-                <Button plain key={`lim-btn-${r.kind}`} onPress={() => void $.ui.toast(`${LABEL[r.kind] ?? r.kind} ${pct(r.percent)}${r.resetsAt > 0 ? ` · resets in ${span(left)} (${clockAt(r.resetsAt, s.at)})` : ''}`)}>
+                <Button plain key={`lim-btn-${r.kind}`} onPress={() => void openTarget($, [USAGE_URL])}>
                   <Text size="caption" color={t === 'neutral' ? undefined : t} weight="semibold">
                     {MARK[t]} {LABEL[r.kind] ?? r.kind} {pct(r.percent)}
                   </Text>

@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderInput } from 'claude-code'
+import type { EngineInterface, Register, RenderInput, RenderSurface } from 'claude-code'
 
 import type { GitInfo } from '../types'
+import { branchUrl, commitsUrl } from './git-url'
 import { isNarrow } from './layout'
 import { loadProject } from './project'
 import { isOn } from './settings'
@@ -51,26 +52,29 @@ const EMPTY = { branch: '', changed: 0, staged: 0, modified: 0, untracked: 0, ah
 
 // The project (main repo folder) does not change per poll: found once, again only after the session's
 // directory moved. A poll is then one `git status` instead of `rev-parse` plus `status`.
-let known = { cwd: '', project: '' }
+let known = { cwd: '', project: '', remote: '' }
 let timer: { cancel: () => void } | null = null
 
 async function refresh($: EngineInterface) {
   let project = known.project
+  let remote = known.remote
   try {
     const cwd = await $.session.cwd()
     if (cwd !== known.cwd) {
       project = await projectOf($)
+      const origin = await git($, ['remote', 'get-url', 'origin'], 5_000)
+      remote = origin !== null && origin.exitCode === 0 ? origin.stdout.trim() : ''
       // The project tab loads in any case, with the folder name when git gave nothing.
       try {
         const name = project !== '' ? project : baseName(await $.session.root())
         if (name !== '') await loadProject($, name)
-        known = { cwd, project }
+        known = { cwd, project, remote }
       } catch {
         // Nothing to show; the project tab says so. Tried again on the next poll.
       }
     }
     const res = await git($, ['status', '--porcelain', '-b'], 10_000)
-    const fresh: GitInfo = res !== null && res.exitCode === 0 ? parse(res.stdout, project) : { project, ...EMPTY }
+    const fresh: GitInfo = res !== null && res.exitCode === 0 ? { ...parse(res.stdout, project), remote } : { project, ...EMPTY }
     await setIfChanged(() => read($, info), v => update($, info, () => v), fresh)
   } catch {
     await setIfChanged(() => read($, info), v => update($, info, () => v), null)
@@ -111,6 +115,31 @@ export async function line($: EngineInterface, e: RenderInput) {
   )
 }
 
+// Opens a folder or an address with the system's opener. Argument vector, no shell: the target is never parsed.
+async function openTarget($: EngineInterface, target: string) {
+  for (const program of ['open', 'xdg-open']) {
+    try {
+      const res = await $.process.run([program, target], { timeoutMs: 5_000 })
+      if (res.exitCode === 0) return
+    } catch {
+      // This opener is not there; the next one tries.
+    }
+  }
+  $.ui.toast(`Could not open ${target}`)
+}
+
+async function openFolder($: EngineInterface) {
+  await openTarget($, await $.session.root())
+}
+
+// The branch on GitHub when the remote is a GitHub one; otherwise the branch name goes to the clipboard.
+async function openBranch($: EngineInterface, git: GitInfo, surface: RenderSurface, commits = false) {
+  const url = (commits ? commitsUrl : branchUrl)(git.remote ?? '', git.branch)
+  if (url !== null) return openTarget($, url)
+  await $.ui.copy({ text: git.branch, surface })
+  $.ui.toast(`No GitHub remote. Copied ${git.branch}`)
+}
+
 export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!isOn(options, 'gitband')) return next(e)
@@ -126,18 +155,35 @@ export const register: Register = (on, options) => {
       ? { tone: 'warning', text: narrow ? `● ${git.changed}` : `● ${git.changed} ${git.changed === 1 ? 'change' : 'changes'}${git.staged > 0 ? ` (${git.staged} staged)` : ''}` }
       : { tone: 'success', text: narrow ? '✓' : '✓ All committed' }
 
-    // One borderless row; a click opens the cockpit pane.
+    // One borderless row, every part its own button: the project opens its folder, the branch its GitHub page,
+    // the state the cockpit.
     return (
       <Box flexDirection="column">
         <Box overflow="hidden" paddingX="sm" gap="sm">
           <Text color="#39639E" size="caption">▌</Text>
-          <Button key="gitband" plain onPress={() => void $.ui.open({ id: PANE, title: 'Cockpit', focus: true })}>
+          <Button key="gitband-project" plain onPress={() => void openFolder($)}>
             <Text size="caption" weight="semibold">{`▣ ${git.project}`}</Text>
-            {isRepo ? <Text size="caption">{` ⎇ ${git.branch}`}</Text> : ''}
-            {isRepo ? <Text size="caption" color={state.tone} weight="semibold">{`  ${state.text}`}</Text> : ''}
-            {git.ahead > 0 ? <Text size="caption" color="permission">{narrow ? `  ↑${git.ahead}` : `  ↑ ${git.ahead} to push`}</Text> : ''}
-            {git.behind > 0 ? <Text size="caption" color="warning">{narrow ? `  ↓${git.behind}` : `  ↓ ${git.behind} to pull`}</Text> : ''}
           </Button>
+          {isRepo && (
+            <Button key="gitband-branch" plain onPress={press => void openBranch($, git, press.surface)}>
+              <Text size="caption">{`⎇ ${git.branch}`}</Text>
+            </Button>
+          )}
+          {isRepo && (
+            <Button key="gitband-state" plain onPress={() => void $.ui.open({ id: PANE, title: 'Cockpit', focus: true })}>
+              <Text size="caption" color={state.tone} weight="semibold">{state.text}</Text>
+            </Button>
+          )}
+          {git.ahead > 0 && (
+            <Button key="gitband-ahead" plain onPress={press => void openBranch($, git, press.surface, true)}>
+              <Text size="caption" color="permission">{narrow ? `↑${git.ahead}` : `↑ ${git.ahead} to push`}</Text>
+            </Button>
+          )}
+          {git.behind > 0 && (
+            <Button key="gitband-behind" plain onPress={press => void openBranch($, git, press.surface, true)}>
+              <Text size="caption" color="warning">{narrow ? `↓${git.behind}` : `↓ ${git.behind} to pull`}</Text>
+            </Button>
+          )}
         </Box>
         {below}
       </Box>

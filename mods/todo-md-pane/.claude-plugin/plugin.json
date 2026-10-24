@@ -1,8 +1,22 @@
 {
   "name": "todo-md-pane",
   "version": "0.1.0",
-  "description": "Pane that shows the open items of the project's todo.md as a checklist; ticking an item removes its line from the file, with undo",
+  "description": "Todo pane: the open items of the project's todo.md as a checklist (ticking removes the line, with undo), plus the TODO, FIXME, HACK and XXX markers in changed code, each file one click away",
   "author": { "name": "BroDesigns" },
   "license": "MIT",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "markers": {
+      "type": "string",
+      "title": "Code markers",
+      "description": "Markers to count in changed files, comma separated",
+      "default": "TODO,FIXME,HACK,XXX"
+    },
+    "sessionFiles": {
+      "type": "boolean",
+      "title": "Session files",
+      "description": "Also count files Claude wrote or edited in this session",
+      "default": true
+    }
+  }
 }

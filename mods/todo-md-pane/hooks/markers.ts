@@ -1,17 +1,13 @@
-import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface } from 'claude-code'
 
-import { changedPaths, countMarkers, isSkipped, joinPath, label, parseMarkers, summarize } from './scan'
+import type { TodoSummary } from '../types'
+import { changedPaths, countMarkers, isSkipped, joinPath, parseMarkers, summarize } from './scan'
 import type { FileCounts } from './scan'
-import { setIfChanged } from './state'
-
-const summary = atom({ plugin: 'todo-band', key: 'summary' } as const, null)
 
 // Caps: at most this many files per scan, none bigger than this, at most this many session files kept.
 const MAX_FILES = 200
 const MAX_BYTES = 512 * 1024
 const MAX_SESSION = 100
-const POLL_MS = 20_000
 
 let config = { markers: parseMarkers(''), session: true }
 // Files Claude wrote or edited this session (absolute). A reload starts over: the poll still has git's view.
@@ -19,9 +15,6 @@ const sessionFiles = new Set<string>()
 // Counts per file, kept while mtime and size stay; only changed files are read again.
 const cache = new Map<string, { stamp: string; counts: number[] }>()
 let known = { cwd: '', top: '' }
-let timer: { cancel: () => void } | null = null
-let isBusy = false
-let isDue = false
 
 // A missing git binary makes process.run throw; that counts as "no repository".
 async function git($: EngineInterface, args: string[]) {
@@ -47,7 +40,14 @@ async function countFile($: EngineInterface, path: string): Promise<number[] | n
   return counts
 }
 
-async function scan($: EngineInterface) {
+export function configure(markers: string, session: boolean) {
+  config = { markers: parseMarkers(markers), session }
+}
+
+export const isTrackingSession = () => config.session
+
+// Counts the markers in the changed files of the working tree and in the files Claude wrote. Null when there is none.
+export async function scanMarkers($: EngineInterface): Promise<TodoSummary | null> {
   const cwd = await $.session.cwd()
   if (cwd !== known.cwd) {
     const res = await git($, ['rev-parse', '--show-toplevel'])
@@ -69,36 +69,12 @@ async function scan($: EngineInterface) {
   for (const path of cache.keys()) if (!paths.has(path)) cache.delete(path)
 
   const fresh = summarize(found, config.markers, known.top !== '' ? known.top : cwd)
-  await setIfChanged(() => read($, summary), v => update($, summary, () => v), fresh.fileCount > 0 ? fresh : null)
-}
 
-// One scan at a time; a request while one runs makes it go round once more.
-async function refresh($: EngineInterface) {
-  if (isBusy) {
-    isDue = true
-    return
-  }
-  isBusy = true
-  try {
-    do {
-      isDue = false
-      await scan($)
-    } while (isDue)
-  } catch {
-    // Nothing to show this round; the next poll tries again.
-  } finally {
-    isBusy = false
-  }
-}
-
-async function start($: EngineInterface) {
-  timer?.cancel()
-  timer = $.clock.every(POLL_MS, () => void refresh($))
-  void refresh($)
+  return fresh.fileCount > 0 ? fresh : null
 }
 
 // Write, Edit and MultiEdit carry `file_path`, NotebookEdit `notebook_path`; read at run time (MultiEdit is untyped).
-async function track($: EngineInterface, e: unknown) {
+export async function trackFile($: EngineInterface, e: unknown) {
   const input = e as { file_path?: unknown; notebook_path?: unknown }
   const raw = typeof input.file_path === 'string' ? input.file_path : typeof input.notebook_path === 'string' ? input.notebook_path : ''
   if (raw === '') return
@@ -109,52 +85,4 @@ async function track($: EngineInterface, e: unknown) {
     const oldest = sessionFiles.values().next().value
     if (oldest !== undefined) sessionFiles.delete(oldest)
   }
-}
-
-export const register: Register = (on, options) => {
-  config = { markers: parseMarkers(String(options.markers ?? '')), session: options.sessionFiles !== false }
-
-  on('session.start', async ($, e, next) => {
-    await start($)
-
-    return next(e)
-  })
-
-  // Display only: never blocks, looks at the result and rescans.
-  on('tool.call', { tool: /^(Write|Edit|MultiEdit|NotebookEdit)$/ }, async ($, e, next) => {
-    const ran = await next(e)
-    if (ran.deny === undefined && ran.isError !== true) {
-      if (config.session) await track($, e)
-      await refresh($)
-    }
-
-    return ran
-  }).catch(($, e, next) => next(e))
-
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
-    const s = await read($, summary)
-    if (s === null || s.fileCount === 0) return next(e)
-
-    const { Box, Button, Text } = $.ui.resolve(e)
-    const isNarrow = e.props.bodyColumns < 44
-    const isLoud = s.counts.some(c => c.marker !== 'TODO')
-    const below = await next(e)
-
-    return (
-      <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm" gap="sm">
-          <Text color="#39639E" size="caption">▌</Text>
-          <Button key="todo" plain onPress={press => {
-            void $.ui.copy({ text: s.files.join('\n'), surface: press.surface })
-            void $.ui.toast('Copied the files with open markers')
-          }}>
-            <Text size="caption" color={isLoud ? 'warning' : undefined} weight="semibold">{label(s)}</Text>
-            {isNarrow ? '' : <Text size="caption" dimColor>{` · ${s.files.join(', ')}`}</Text>}
-          </Button>
-        </Box>
-        {below}
-      </Box>
-    )
-  })
 }

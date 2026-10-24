@@ -1,5 +1,7 @@
 export type GitInfo = {
   project: string
+  // The `origin` remote as git spells it; '' without one. Only used to build links.
+  remote?: string
   branch: string
   changed: number
   staged: number

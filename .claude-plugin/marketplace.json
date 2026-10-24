@@ -16,11 +16,6 @@
       "description": "Blocks API keys, tokens, private keys and plaintext passwords in Write, Edit, MultiEdit, NotebookEdit and Bash"
     },
     {
-      "name": "todo-band",
-      "source": "./mods/todo-band",
-      "description": "Band above the prompt: counts TODO, FIXME, HACK and XXX in the changed files of the working tree and in the files Claude wrote in this session"
-    },
-    {
       "name": "branch-guard-band",
       "source": "./mods/branch-guard-band",
       "description": "Band above the prompt: red warning when you work directly on a protected branch such as main or master. Display only, blocks nothing"
@@ -58,7 +53,7 @@
     {
       "name": "todo-md-pane",
       "source": "./mods/todo-md-pane",
-      "description": "Pane with the open items of the project's todo.md as a checklist; ticking an item removes its line from the file, with undo"
+      "description": "Todo pane: open items of the project's todo.md as a checklist (ticking removes the line, with undo) plus TODO, FIXME, HACK and XXX markers in changed code, each file one click away"
     },
     {
       "name": "kanban-pane",

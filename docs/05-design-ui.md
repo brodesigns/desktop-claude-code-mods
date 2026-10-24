@@ -41,7 +41,7 @@ Files tab: shows read files (`▤ read ×N`, tool Read) and changed files (`✎ 
 
 Every band is one borderless, small row (`paddingX="sm"`), so seven bands cost seven lines, not three each. A band is a plain `Button` around `Text` parts, so the whole row is clickable. Brand accent `#39639E` (BroDesigns blue) as the `▌` marker at the left; text uses `caption` size and the theme's text colour; `warning`/`error` roles only for a real problem.
 
-Git band (`hooks/git.tsx`): `▣ Project ⎇ branch ✓ All committed` or `● N changes (M staged)`, `↑ N to push`, `↓ N to pull`. Narrow: short words. A click opens the cockpit pane. Other bands: the branch guard copies `git switch -c `, daily, deadline and limit show their detail in a toast, todo and env copy their file names.
+Git band (`hooks/git.tsx`): `▣ Project ⎇ branch ✓ All committed` or `● N changes (M staged)`, `↑ N to push`, `↓ N to pull`. Narrow: short words. Every part is its own button: the project opens its folder in the file manager, the branch opens its page on GitHub (only a `github.com` remote, address built by `hooks/git-url.ts`; otherwise the branch name is copied), `↑`/`↓` open the branch's commit list, the state opens the cockpit. Other bands: the env band shows a file in the file manager, the limit band opens the usage page, the branch guard copies `git switch -c `, daily and deadline are display only. Targets are opened with `open` or `xdg-open` as an argument vector, never through a shell.
 
 Project name: the folder of the main repository (`git rev-parse --git-common-dir`), so a worktree also shows the real project name. Without a git repository, the folder name. The same info appears as one line in the head of the cockpit pane.
 

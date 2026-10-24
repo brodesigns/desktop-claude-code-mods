@@ -84,6 +84,26 @@ async function start($: EngineInterface) {
 
 const COLOR = { error: 'error', warning: 'warning', info: 'suggestion' } as const
 
+// Opens a folder, file or address with the system's opener. Argument vector, no shell: the target is never parsed.
+async function openTarget($: EngineInterface, args: string[]) {
+  for (const program of ['open', 'xdg-open']) {
+    try {
+      // xdg-open has no reveal flag: it opens the folder of the file instead.
+      const argv = program === 'open' ? [program, ...args] : [program, args[args.length - 1] ?? '']
+      const res = await $.process.run(argv, { timeoutMs: 5_000 })
+      if (res.exitCode === 0) return
+    } catch {
+      // This opener is not there; the next one tries.
+    }
+  }
+  $.ui.toast(`Could not open ${args[args.length - 1] ?? ''}`)
+}
+
+// A click shows the file in the file manager (never opens its content).
+async function reveal($: EngineInterface, file: string) {
+  await openTarget($, ['-R', `${await $.session.root()}/${file}`])
+}
+
 export const register: Register = (on, options) => {
   config = { variables: parseVariables(String(options.variables ?? '')), ignoreTemplates: options.ignoreTemplates !== false }
 
@@ -117,13 +137,12 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         <Box overflow="hidden" paddingX="sm" gap="sm">
           <Text color="#39639E" size="caption">▌</Text>
-          <Button key="env" plain onPress={press => {
-            void $.ui.copy({ text: env.files.join('\n'), surface: press.surface })
-            void $.ui.toast('Copied the env file names')
-          }}>
-            <Text size="caption" color={env.tone === 'info' ? undefined : color} weight="semibold">{title}</Text>
-            {isNarrow ? '' : <Text size="caption" dimColor>{` · ${env.files.join(', ')}`}</Text>}
-          </Button>
+          <Text size="caption" color={env.tone === 'info' ? undefined : color} weight="semibold">{title}</Text>
+          {env.files.slice(0, isNarrow ? 1 : 4).map(file => (
+            <Button key={`env-${file}`} plain onPress={() => void reveal($, file)}>
+              <Text size="caption" dimColor>{file}</Text>
+            </Button>
+          ))}
         </Box>
         {below}
       </Box>

@@ -21,7 +21,6 @@ First public version, tested with Claude Code 2.1.308.
 
 ### Bands above the prompt
 
-- `todo-band`: counts TODO, FIXME, HACK and XXX in changed files.
 - `env-band`: shows the active environment and which `.env` files exist.
 - `daily-band`: today's working time, cost, turns and commits across all sessions.
 - `deadline-band`: countdown to the project deadline set with `/deadline`.
@@ -31,7 +30,7 @@ First public version, tested with Claude Code 2.1.308.
 
 - `prompt-library`: saved prompts with search and placeholders, inserted with `/p`.
 - `snippet-pane`: code snippets per project, secrets redacted.
-- `todo-md-pane`: open items of the project's todo.md as a checklist; ticking removes the line, with undo.
+- `todo-md-pane`: todo pane with the open items of the project's todo.md as a checklist (ticking removes the line, with undo) and the TODO, FIXME, HACK and XXX markers of changed files, each file one click away.
 - `kanban-pane`: small board per project with open, in progress and done.
 - `log-viewer`: output of the latest Bash calls with filter and search.
 - `dependency-pane`: project dependencies, checked with `npm outdated` on request.

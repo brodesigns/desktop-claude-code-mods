@@ -61,7 +61,8 @@ test('the environment name and the files, never another value, on terminal and d
     const title = await ui.find({ type: 'Text', text: /◉/ })
     expect(title?.text).toBe('◉ development')
     expect(title?.props.color).toBeUndefined()
-    expect((await ui.find({ type: 'Text', text: /^ ·/ }))?.text).toBe(' · .env.local, .env')
+    expect((await ui.find({ type: 'Button', text: /^\.env\.local$/ })) != null).toBe(true)
+    expect((await ui.find({ type: 'Button', text: /^\.env$/ })) != null).toBe(true)
     expect((await ui.find({ type: 'Text', text: new RegExp(SECRET) })) == null).toBe(true)
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)
     await ui.unmount()
@@ -143,4 +144,18 @@ test('helpers: precedence, parsing, tones', () => {
   expect(toneOf('Staging')).toBe('warning')
   expect(toneOf('productive')).toBe('info')
   expect(toneOf('development')).toBe('info')
+})
+
+test('a click on a file shows it in the file manager, never opens its content', async ($, on) => {
+  const clock = world(on, { '.env.local': 'NODE_ENV=development\n' })
+  const run: string[][] = []
+  on('process.run', (_, e) => {
+    run.push((e as { argv: string[] }).argv)
+    return { value: { exitCode: 0, stdout: '', stderr: '' } }
+  })
+  await begin($, clock)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  await ui.press({ key: 'env-.env.local' })
+  expect(run).toEqual([['open', '-R', '/p/.env.local']])
+  await ui.unmount()
 })
