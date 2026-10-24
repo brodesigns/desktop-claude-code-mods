@@ -60,7 +60,7 @@ const turn = (turnId: string, durationMs: number, agentId?: string) =>
   ({ answer: '', durationMs, isAborted: false, turnId, reason: 'answer', ...(agentId !== undefined ? { agentId } : {}) }) as never
 
 const line = async (ui: { find: (q: { type: string; text: RegExp }) => Promise<{ text: string } | undefined | null> }) =>
-  (await ui.find({ type: 'Text', text: /Today/ }))?.text ?? null
+  (await ui.find({ type: 'Button', text: /Today/ }))?.text ?? null
 
 test('formatting and day keys', () => {
   expect(dayKey(NOW)).toBe(TODAY)
@@ -89,7 +89,7 @@ test('a turn adds to the day, merged with the other sessions of today', async ($
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(band(surface))
-    expect(await line(ui as never)).toBe(`☀ Today: 1 h 10 min · ≈ ${usd(4.2)} · 31 Turns · 5 Commits`)
+    expect(await line(ui as never)).toBe(`☀ Today 1 h 10 min · ≈ ${usd(4.2)} · 31 Turns · 5 Commits`)
     // The bands beneath (here the engine's stand-in) still draw under it.
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)
     await ui.unmount()
@@ -133,7 +133,7 @@ test('a new day starts empty and old days are pruned', async ($, on) => {
 
   await $.turn.complete(turn('t1', 2 * MIN))
   const before = await $.ui.mount(band('terminal'))
-  expect(await line(before as never)).toBe('☀ Today: 2 min · 1 Turn · 5 Commits')
+  expect(await line(before as never)).toBe('☀ Today 2 min · 1 Turn · 5 Commits')
   await before.unmount()
 
   await clock.advance(14 * HOUR + MIN)
@@ -146,7 +146,7 @@ test('a new day starts empty and old days are pruned', async ($, on) => {
   await $.turn.complete(turn('t2', 3 * MIN))
   expect(w.store.get(entryKey('2026-10-24', 'me'))).toEqual({ ms: 3 * MIN, turns: 1, usd: 0 })
   const ui = await $.ui.mount(band('desktop'))
-  expect(await line(ui as never)).toBe('☀ Today: 3 min · 1 Turn · 5 Commits')
+  expect(await line(ui as never)).toBe('☀ Today 3 min · 1 Turn · 5 Commits')
   await ui.unmount()
 })
 
@@ -173,7 +173,7 @@ test('a survey holds the band', async ($, on) => {
 
   for (const surface of SURFACES) {
     const shown = await $.ui.mount(band(surface))
-    expect(await line(shown as never)).toBe(`☀ Today: 1 h · ≈ ${usd(2.95)} · 30 Turns · 5 Commits`)
+    expect(await line(shown as never)).toBe(`☀ Today 1 h · ≈ ${usd(2.95)} · 30 Turns · 5 Commits`)
     await shown.unmount()
     const ui = await $.ui.mount(band(surface, true))
     expect(await line(ui as never)).toBe(null)

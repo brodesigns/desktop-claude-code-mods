@@ -150,7 +150,7 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     if (fromDays > 0 && deadline.at - now > fromDays * DAY) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const tone = toneOf(deadline.at, now)
     const narrow = e.props.bodyColumns < 44
 
@@ -159,15 +159,13 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box borderStyle="round" borderColor={tone === 'neutral' ? 'subtle' : tone} overflow="hidden" paddingX="sm">
-          <Box flexShrink={1} minWidth={0} overflow="hidden">
-            <Text wrap="truncate">
-              <Text color={tone === 'neutral' ? undefined : tone} weight="semibold">
-                {tone === 'error' ? '⚠' : '⏳'} {deadline.text} {distance(deadline.at, now)}
-              </Text>
-              {narrow ? '' : <Text dimColor>{` · ${dateLabel(deadline.at, deadline.hasTime, now)}`}</Text>}
+        <Box overflow="hidden" paddingX="sm">
+          <Button key="deadline" plain onPress={() => void $.ui.toast(`${deadline.text} ${distance(deadline.at, now)} · ${dateLabel(deadline.at, deadline.hasTime, now)}`)}>
+            <Text color={tone === 'neutral' ? '#22d3ee' : tone} weight="semibold">
+              {tone === 'error' ? '⚠' : '⏳'} {deadline.text} {distance(deadline.at, now)}
             </Text>
-          </Box>
+            {narrow ? '' : <Text dimColor>{` · ${dateLabel(deadline.at, deadline.hasTime, now)}`}</Text>}
+          </Button>
         </Box>
         {below}
       </Box>

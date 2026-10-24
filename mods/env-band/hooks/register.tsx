@@ -107,7 +107,7 @@ export const register: Register = (on, options) => {
     const env = await read($, info)
     if (env === null || env.files.length === 0) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const isNarrow = e.props.bodyColumns < 44
     const color = COLOR[env.tone]
     const title = env.name !== '' ? `◉ ${env.name}` : '◉ Environment not set'
@@ -115,15 +115,14 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box borderStyle="round" borderColor={env.tone === 'info' ? 'subtle' : color} overflow="hidden" paddingX="sm" gap="sm" alignItems="center">
-          <Box flexShrink={0}>
-            <Text color={color} weight="semibold" wrap="truncate">{title}</Text>
-          </Box>
-          {!isNarrow && (
-            <Box flexShrink={1} minWidth={0} overflow="hidden">
-              <Text dimColor wrap="truncate">{`· ${env.files.join(', ')}`}</Text>
-            </Box>
-          )}
+        <Box overflow="hidden" paddingX="sm">
+          <Button key="env" plain onPress={press => {
+            void $.ui.copy({ text: env.files.join('\n'), surface: press.surface })
+            void $.ui.toast('Copied the env file names')
+          }}>
+            <Text color={env.tone === 'info' ? '#22d3ee' : color} weight="semibold">{title}</Text>
+            {isNarrow ? '' : <Text dimColor>{` · ${env.files.join(', ')}`}</Text>}
+          </Button>
         </Box>
         {below}
       </Box>

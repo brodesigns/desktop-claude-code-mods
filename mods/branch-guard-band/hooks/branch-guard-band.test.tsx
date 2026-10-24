@@ -39,7 +39,7 @@ test('on main the band warns, on terminal and desktop', async ($, on) => {
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface })
     const warning = await ui.find({ type: 'Text', text: /⚠/ })
-    expect(warning?.text).toBe('⚠ You are working directly on main')
+    expect(warning?.text).toBe('⚠ Working directly on main')
     expect(warning?.props.color).toBe('error')
     expect((await ui.find({ type: 'Text', text: /git switch -c/ })) != null).toBe(true)
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)
@@ -80,7 +80,7 @@ test('a git switch by Claude shows at once, the poll catches a switch outside', 
   head.branch = 'main'
   await $.tool.call({ tool: 'Bash', command: 'git switch main' })
   const shown = await $.ui.mount({ ...BAND, surface: 'desktop' })
-  expect((await shown.find({ type: 'Text', text: /⚠/ }))?.text).toBe('⚠ You are working directly on main')
+  expect((await shown.find({ type: 'Text', text: /⚠/ }))?.text).toBe('⚠ Working directly on main')
   await shown.unmount()
 
   head.branch = 'feature/y'
@@ -95,7 +95,7 @@ test('own list with a wildcard, hint off', { options: { branches: 'develop, rele
   await begin($, clock)
 
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /⚠/ }))?.text).toBe('⚠ You are working directly on release/1.2')
+  expect((await ui.find({ type: 'Text', text: /⚠/ }))?.text).toBe('⚠ Working directly on release/1.2')
   expect((await ui.find({ type: 'Text', text: /git switch -c/ })) == null).toBe(true)
   await ui.unmount()
 })

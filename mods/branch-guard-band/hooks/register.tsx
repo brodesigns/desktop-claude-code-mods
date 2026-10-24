@@ -58,21 +58,21 @@ export const register: Register = (on, options) => {
     const branch = await read($, current)
     if (branch === null || !isProtected(branch, patterns)) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const isNarrow = e.props.bodyColumns < 56
     const below = await next(e)
 
+    // One borderless row; a click copies the command that leaves the branch.
     return (
       <Box flexDirection="column">
-        <Box borderStyle="round" borderColor="error" overflow="hidden" paddingX="sm" gap="sm" alignItems="center">
-          <Box flexShrink={isNarrow ? 1 : 0} minWidth={0} overflow="hidden">
-            <Text color="error" weight="semibold" wrap="truncate">{`⚠ You are working directly on ${branch}`}</Text>
-          </Box>
-          {showHint && !isNarrow && (
-            <Box flexShrink={1} minWidth={0} overflow="hidden">
-              <Text dimColor size="caption" wrap="truncate">New branch: git switch -c &lt;name&gt;</Text>
-            </Box>
-          )}
+        <Box overflow="hidden" paddingX="sm">
+          <Button key="guard" plain onPress={press => {
+            void $.ui.copy({ text: 'git switch -c ', surface: press.surface })
+            void $.ui.toast('Copied "git switch -c ", add a branch name')
+          }}>
+            <Text color="error" weight="semibold">{`⚠ Working directly on ${branch}`}</Text>
+            {showHint && !isNarrow ? <Text dimColor>{' · click to copy: git switch -c'}</Text> : ''}
+          </Button>
         </Box>
         {below}
       </Box>

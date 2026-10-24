@@ -38,9 +38,6 @@ const engineBand = (on: On) => {
 }
 
 // The colour of the innermost Text the pattern finds (the outer line carries none).
-// The band's own framed Box (the outer column carries no border).
-type Boxes = { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown> }[]> }
-const borderOf = async (ui: Boxes) => (await ui.findAll({ type: 'Box' })).map(b => b.props.borderColor).find(c => c !== undefined)
 
 type Found = { findAll: (q: { type: string; text: RegExp }) => Promise<{ props: Record<string, unknown> }[]> }
 const colorOf = async (ui: Found, text: RegExp) => (await ui.findAll({ type: 'Text', text })).map(f => f.props.color).find(c => c !== undefined)
@@ -64,9 +61,9 @@ test('over the threshold the band counts down to the reset, on the timer', async
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...(band() as object), surface } as never)
-    const head = await ui.find({ type: 'Text', text: /5h limit/ })
-    expect(head?.text).toContain('◔ 5h limit 72%')
-    expect(head?.text).toContain('resets in 1 h 23 min (11:23)')
+    const head = await ui.find({ type: 'Button', text: /5h/ })
+    expect(head?.text).toContain('◔ 5h 72%')
+    expect(head?.text).toContain('↻ 1 h 23 min')
     // The bands beneath (here the engine's stand-in) still draw under it.
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)
     await ui.unmount()
@@ -74,7 +71,7 @@ test('over the threshold the band counts down to the reset, on the timer', async
 
   await clock.advance(30 * MIN)
   const ui = await $.ui.mount({ ...(band() as object), surface: 'terminal' } as never)
-  expect((await ui.find({ type: 'Text', text: /5h limit/ }))?.text).toContain('resets in 53 min')
+  expect((await ui.find({ type: 'Button', text: /5h/ }))?.text).toContain('↻ 53 min')
   await ui.unmount()
 })
 
@@ -89,16 +86,15 @@ test('warning from 80, error from 95, both windows side by side', async ($, on) 
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...(band() as object), surface } as never)
-    expect(await borderOf(ui as never)).toBe('error')
-    expect(await colorOf(ui as never, /^⚠ 7-day limit/)).toBe('error')
-    expect((await ui.find({ type: 'Text', text: /7-day limit 96/ }))?.text).toContain('resets in 2 days 3 h')
-    expect(await colorOf(ui as never, /^◕ 5h limit/)).toBe('warning')
+    expect(await colorOf(ui as never, /^⚠ 7d/)).toBe('error')
+    expect((await ui.find({ type: 'Button', text: /7d 96/ }))?.text).toContain('↻ 2 days 3 h')
+    expect(await colorOf(ui as never, /^◕ 5h/)).toBe('warning')
     await ui.unmount()
 
     // Narrow: only the fullest window.
     const slim = await $.ui.mount({ ...(band(40) as object), surface } as never)
-    expect((await slim.find({ type: 'Text', text: /5h limit/ })) == null).toBe(true)
-    expect((await slim.find({ type: 'Text', text: /7-day limit/ })) != null).toBe(true)
+    expect((await slim.find({ type: 'Button', text: /5h/ })) == null).toBe(true)
+    expect((await slim.find({ type: 'Button', text: /7d/ })) != null).toBe(true)
     await slim.unmount()
   }
 })
@@ -124,11 +120,11 @@ test('below the threshold, without limits, after the reset and under a survey th
   await clock.advance(30_000)
   await hidden()
 
-  // 90% but the window resets in 10 min; 11 min later the reading is stale.
+  // 90% but the window ↻ 10 min; 11 min later the reading is stale.
   limits = [{ kind: 'five_hour', percentUsed: 90, resetsAt: iso(NOW + 10 * MIN) }]
   await clock.advance(30_000)
   const shown = await $.ui.mount({ ...(band() as object), surface: 'desktop' } as never)
-  expect((await shown.find({ type: 'Text', text: /5h limit 90/ })) != null).toBe(true)
+  expect((await shown.find({ type: 'Button', text: /5h 90/ })) != null).toBe(true)
   await shown.unmount()
   const survey = await $.ui.mount({ ...(band(100, true) as object), surface: 'desktop' } as never)
   expect((await survey.find({ type: 'Text', text: /limit/ })) == null).toBe(true)
@@ -165,7 +161,7 @@ test('a session.measure moves the band without a usage call', async ($, on) => {
   } as never)
 
   const ui = await $.ui.mount({ ...(band() as object), surface: 'terminal' } as never)
-  expect(await colorOf(ui as never, /^⚠ 5h limit 97/)).toBe('error')
-  expect((await ui.find({ type: 'Text', text: /5h limit/ }))?.text).toContain('resets in 5 min')
+  expect(await colorOf(ui as never, /^⚠ 5h 97/)).toBe('error')
+  expect((await ui.find({ type: 'Button', text: /5h/ }))?.text).toContain('↻ 5 min')
   await ui.unmount()
 })

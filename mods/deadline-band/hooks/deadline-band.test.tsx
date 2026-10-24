@@ -59,9 +59,6 @@ const days = async (clock: { advance: (ms: number) => Promise<void> }, n: number
 
 const command = (args: string) => ({ command: 'deadline', args, origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 80 } })
 
-// The band's own framed Box (the outer column carries no border).
-type Boxes = { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown> }[]> }
-const borderOf = async (ui: Boxes) => (await ui.findAll({ type: 'Box' })).map(b => b.props.borderColor).find(c => c !== undefined)
 
 type Found = { findAll: (q: { type: string; text: RegExp }) => Promise<{ props: Record<string, unknown> }[]> }
 const colorOf = async (ui: Found, text: RegExp) => (await ui.findAll({ type: 'Text', text })).map(f => f.props.color).find(c => c !== undefined)
@@ -122,10 +119,9 @@ test('/deadline stores per project and the band counts down', async ($, on) => {
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(band(surface))
-    expect((await ui.find({ type: 'Text', text: /Release/ }))?.text).toBe('⏳ Release in 9 days 13 h · Sun Jun 21')
+    expect((await ui.find({ type: 'Button', text: /Release/ }))?.text).toBe('⏳ Release in 9 days 13 h · Sun Jun 21')
     // The bands beneath (here the engine's stand-in) still draw under it.
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)
-    expect(await borderOf(ui as never)).toBe('subtle')
     await ui.unmount()
   }
   expect((await $.command.run(command(''))).text).toContain('Release (demo): Sun Jun 21 2026, in 9 days 13 h.')
@@ -140,7 +136,6 @@ test('urgency colours: three days warn, one day and overdue are errors', { timeo
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(band(surface))
-    expect(await borderOf(ui as never)).toBe('warning')
     expect(await colorOf(ui as never, /^⏳ Handover in 2 days 8 h/)).toBe('warning')
     await ui.unmount()
   }
@@ -148,7 +143,6 @@ test('urgency colours: three days warn, one day and overdue are errors', { timeo
   await days(clock, 2)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(band(surface))
-    expect(await borderOf(ui as never)).toBe('error')
     expect(await colorOf(ui as never, /^⚠ Handover in 8 h/)).toBe('error')
     await ui.unmount()
   }
@@ -199,7 +193,7 @@ test('a store that refuses the write is not reported as saved', async ($, on) =>
   const res = await $.command.run(command('21.6. Release'))
   expect(res.text).toContain('Not saved')
   const ui = await $.ui.mount(band('desktop'))
-  expect((await ui.find({ type: 'Text', text: /Release/ })) == null).toBe(true)
+  expect((await ui.find({ type: 'Button', text: /Release/ })) == null).toBe(true)
   await ui.unmount()
 })
 
@@ -211,7 +205,7 @@ test('under a survey and further away than fromDays the band stays hidden', { op
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(band(surface))
-    expect((await ui.find({ type: 'Text', text: /Release/ })) == null).toBe(true)
+    expect((await ui.find({ type: 'Button', text: /Release/ })) == null).toBe(true)
     await ui.unmount()
   }
 
@@ -221,7 +215,7 @@ test('under a survey and further away than fromDays the band stays hidden', { op
     expect((await ui.find({ type: 'Text', text: /Release in 2 days 13 h/ })) != null).toBe(true)
     await ui.unmount()
     const survey = await $.ui.mount(band(surface, 100, true))
-    expect((await survey.find({ type: 'Text', text: /Release/ })) == null).toBe(true)
+    expect((await survey.find({ type: 'Button', text: /Release/ })) == null).toBe(true)
     await survey.unmount()
   }
 })

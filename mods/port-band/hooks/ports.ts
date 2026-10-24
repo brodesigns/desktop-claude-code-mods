@@ -59,6 +59,7 @@ export const parseSs = (stdout: string): Listener[] => {
 export const select = (list: Listener[], want: Wanted): Listener[] => {
   const byPort = new Map<number, Listener>()
   for (const l of list) {
+    if (SYSTEM.has(l.name.toLowerCase())) continue
     const pass = want.all ? l.port >= 1024 && l.name !== '' : want.ports.includes(l.port)
     if (!pass) continue
     const had = byPort.get(l.port)
@@ -67,6 +68,10 @@ export const select = (list: Listener[], want: Wanted): Listener[] => {
 
   return [...byPort.values()].sort((a, b) => a.port - b.port)
 }
+
+// macOS system services that listen on dev-server ports (AirPlay Receiver holds 5000 and 7000); never a dev server.
+// lsof cuts command names to nine characters, hence `ControlCe`.
+const SYSTEM = new Set(['controlce', 'controlcenter'])
 
 // The name beside a port: the process, or for a bare runtime on a known port the usual tool.
 export const label = (l: Listener) => {

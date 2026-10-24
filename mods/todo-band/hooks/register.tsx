@@ -136,22 +136,21 @@ export const register: Register = (on, options) => {
     const s = await read($, summary)
     if (s === null || s.fileCount === 0) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const isNarrow = e.props.bodyColumns < 44
     const isLoud = s.counts.some(c => c.marker !== 'TODO')
     const below = await next(e)
 
     return (
       <Box flexDirection="column">
-        <Box borderStyle="round" borderColor="subtle" overflow="hidden" paddingX="sm" gap="sm" alignItems="center">
-          <Box flexShrink={isNarrow ? 1 : 0} minWidth={0} overflow="hidden">
-            <Text color={isLoud ? 'warning' : 'suggestion'} weight="semibold" wrap="truncate">{label(s)}</Text>
-          </Box>
-          {!isNarrow && (
-            <Box flexShrink={1} minWidth={0} overflow="hidden">
-              <Text dimColor size="caption" wrap="truncate">{s.files.join(', ')}</Text>
-            </Box>
-          )}
+        <Box overflow="hidden" paddingX="sm">
+          <Button key="todo" plain onPress={press => {
+            void $.ui.copy({ text: s.files.join('\n'), surface: press.surface })
+            void $.ui.toast('Copied the files with open markers')
+          }}>
+            <Text color={isLoud ? 'warning' : '#22d3ee'} weight="semibold">{label(s)}</Text>
+            {isNarrow ? '' : <Text dimColor>{` · ${s.files.join(', ')}`}</Text>}
+          </Button>
         </Box>
         {below}
       </Box>

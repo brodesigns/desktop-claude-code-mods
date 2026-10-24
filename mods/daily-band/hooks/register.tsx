@@ -171,7 +171,7 @@ export const register: Register = (on, options) => {
     // After midnight the old day is gone even before the next tick.
     if (t.date !== dayKey(await $.clock.now())) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const parts = [
       duration(t.ms),
       ...(t.usd > 0 ? [`≈ ${money(t.usd)}`] : []),
@@ -184,14 +184,14 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box borderStyle="round" borderColor="subtle" overflow="hidden" paddingX="sm">
-          <Box flexShrink={1} minWidth={0} overflow="hidden">
-            <Text wrap="truncate">
-              <Text color="warning">☀</Text>
-              <Text weight="semibold"> Today: </Text>
-              <Text dimColor>{parts.join(' · ')}</Text>
-            </Text>
-          </Box>
+        <Box overflow="hidden" paddingX="sm">
+          <Button key="daily" plain onPress={press => {
+            void $.ui.copy({ text: `Today: ${parts.join(' · ')}`, surface: press.surface })
+            void $.ui.toast('Copied today\'s summary')
+          }}>
+            <Text color="#22d3ee" weight="semibold">☀ Today </Text>
+            <Text dimColor>{parts.join(' · ')}</Text>
+          </Button>
         </Box>
         {below}
       </Box>

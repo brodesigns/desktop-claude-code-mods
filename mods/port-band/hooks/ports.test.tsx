@@ -77,14 +77,14 @@ test('the band shows the listening dev servers on terminal and desktop, above an
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
-    expect((await ui.find({ type: 'Text', text: ':3000 node · :5173 vite · :8000 Python' })) != null).toBe(true)
+    for (const t of [/:3000 node/, /:5173 vite/, /:8000 Python/]) expect((await ui.find({ type: 'Button', text: t })) != null).toBe(true)
     expect((await ui.find({ type: 'Text', text: /:22\b|49152/ })) == null).toBe(true)
     expect((await ui.find({ type: 'Text', text: 'other line' })) != null).toBe(true)
     await ui.unmount()
 
     // Narrow: ports only.
     const slim = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 30 }, surface })
-    expect((await slim.find({ type: 'Text', text: ':3000 · :5173 · :8000' })) != null).toBe(true)
+    for (const t of [/^:3000$/, /^:5173$/, /^:8000$/]) expect((await slim.find({ type: 'Button', text: t })) != null).toBe(true)
     await slim.unmount()
   }
 })
@@ -144,7 +144,7 @@ test('without lsof the band falls back to ss', async ($, on) => {
 
   expect(asked).toEqual(['lsof', 'ss'])
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: ':3000 node · :5173 vite · :8080' })) != null).toBe(true)
+  for (const t of [/:3000 node/, /:5173 vite/, /:8080/]) expect((await ui.find({ type: 'Button', text: t })) != null).toBe(true)
   await ui.unmount()
 })
 

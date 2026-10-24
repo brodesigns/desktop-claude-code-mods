@@ -6,7 +6,7 @@ import { clockAt, pct, span, toneOf } from './time'
 
 const snap = atom({ plugin: 'limit-band', key: 'snap' } as const, null)
 
-const LABEL: Record<string, string> = { five_hour: '5h limit', seven_day: '7-day limit', spend_limit: 'Spend limit' }
+const LABEL: Record<string, string> = { five_hour: '5h', seven_day: '7d', spend_limit: 'Spend' }
 const MARK = { neutral: '◔', warning: '◕', error: '⚠' } as const
 const TICK_MS = 30_000
 
@@ -81,7 +81,7 @@ export const register: Register = (on, options) => {
     const worst = s?.rows[0]
     if (e.props.hasSurvey || s === null || worst === undefined) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const narrow = e.props.bodyColumns < 56
     const tone = toneOf(worst.percent)
     const rows = narrow ? [worst] : s.rows
@@ -91,27 +91,25 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box borderStyle="round" borderColor={tone === 'neutral' ? 'subtle' : tone} overflow="hidden" paddingX="sm" gap="md">
+        <Box overflow="hidden" paddingX="sm" gap="md">
           {rows.map(r => {
             const t = toneOf(r.percent)
             const left = r.resetsAt - s.at
 
             return (
               <Box key={`lim-${r.kind}`} flexShrink={1} minWidth={0} overflow="hidden">
-                <Text wrap="truncate">
+                <Button plain key={`lim-btn-${r.kind}`} onPress={() => void $.ui.toast(`${LABEL[r.kind] ?? r.kind} ${pct(r.percent)}${r.resetsAt > 0 ? ` · resets in ${span(left)} (${clockAt(r.resetsAt, s.at)})` : ''}`)}>
                   <Text color={t === 'neutral' ? undefined : t} weight="semibold">
                     {MARK[t]} {LABEL[r.kind] ?? r.kind} {pct(r.percent)}
                   </Text>
                   {r.resetsAt > 0 ? (
                     <Text dimColor>
-                      {' · resets in '}
-                      {span(left)}
-                      {narrow ? '' : ` (${clockAt(r.resetsAt, s.at)})`}
+                      {` · ↻ ${span(left)}`}
                     </Text>
                   ) : (
                     ''
                   )}
-                </Text>
+                </Button>
               </Box>
             )
           })}

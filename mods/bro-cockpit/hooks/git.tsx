@@ -6,6 +6,7 @@ import { isNarrow } from './layout'
 import { loadProject } from './project'
 import { isOn } from './settings'
 import { setIfChanged } from './state'
+import { PANE } from './pane'
 import { pill, SPACE, TYPE } from './style'
 
 const info = atom({ plugin: 'bro-cockpit', key: 'gitInfo' } as const, null)
@@ -116,34 +117,28 @@ export const register: Register = (on, options) => {
     const git = await read($, info)
     if (e.props.hasSurvey || git === null) return next(e)
 
-    const ui = $.ui.resolve(e)
-    const { Box, Text } = ui
+    const { Box, Button, Text } = $.ui.resolve(e)
     const narrow = isNarrow(e as unknown as RenderInput)
     const isRepo = git.branch !== ''
     // The bands of other mods draw beneath this one; returning without them would hide them.
     const below = await next(e)
+    const state = git.changed > 0
+      ? { tone: 'warning', text: narrow ? `● ${git.changed}` : `● ${git.changed} ${git.changed === 1 ? 'change' : 'changes'}${git.staged > 0 ? ` (${git.staged} staged)` : ''}` }
+      : { tone: 'success', text: narrow ? '✓' : '✓ All committed' }
 
+    // One borderless row; a click opens the cockpit pane.
     return (
       <Box flexDirection="column">
-      <Box flexDirection="column" borderStyle="round" overflow="hidden" borderColor={git.changed > 0 ? 'warning' : 'subtle'} paddingX="sm" gap={SPACE.tight}>
-        <Box alignItems="center" gap={narrow ? SPACE.tight : SPACE.base} flexWrap="wrap">
-          <Box flexShrink={1} minWidth={0} overflow="hidden">
-            <Text weight="semibold" wrap="truncate">▣ {git.project}</Text>
-          </Box>
-          {isRepo && pill(ui, 'br', `⎇ ${git.branch}`, 'info', true)}
-          {isRepo && statusPill(ui, git, narrow)}
-          {git.ahead > 0 && pill(ui, 'ah', narrow ? `↑ ${git.ahead}` : `↑ ${git.ahead} to push`, 'permission')}
-          {git.behind > 0 && pill(ui, 'bh', narrow ? `↓ ${git.behind}` : `↓ ${git.behind} to pull`, 'warning')}
+        <Box overflow="hidden" paddingX="sm">
+          <Button key="gitband" plain onPress={() => void $.ui.open({ id: PANE, title: 'Cockpit', focus: true })}>
+            <Text color="#22d3ee" weight="semibold">{`▣ ${git.project}`}</Text>
+            {isRepo ? <Text color="#22d3ee">{` ⎇ ${git.branch}`}</Text> : ''}
+            {isRepo ? <Text color={state.tone} weight="semibold">{`  ${state.text}`}</Text> : ''}
+            {git.ahead > 0 ? <Text color="permission">{narrow ? `  ↑${git.ahead}` : `  ↑ ${git.ahead} to push`}</Text> : ''}
+            {git.behind > 0 ? <Text color="warning">{narrow ? `  ↓${git.behind}` : `  ↓ ${git.behind} to pull`}</Text> : ''}
+          </Button>
         </Box>
-        {!narrow && git.changed > 0 && (
-          <Box gap={SPACE.loose} flexWrap="wrap">
-            <Text color={git.staged > 0 ? 'success' : 'inactive'} size={TYPE.label}>✓ {git.staged} ready to commit</Text>
-            <Text color={git.modified > 0 ? 'warning' : 'inactive'} size={TYPE.label}>✎ {git.modified} modified</Text>
-            <Text color={git.untracked > 0 ? 'permission' : 'inactive'} size={TYPE.label}>＋ {git.untracked} new</Text>
-          </Box>
-        )}
-      </Box>
-      {below}
+        {below}
       </Box>
     )
   })

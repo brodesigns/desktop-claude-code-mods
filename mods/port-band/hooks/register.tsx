@@ -96,21 +96,27 @@ export const register: Register = (on, options) => {
 
     // Another mod's band (beneath this one) stays: this line goes on top of it.
     const below = await next(e)
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const narrow = e.props.bodyColumns < 44
-    const parts = list.map(l => {
-      const name = label(l)
-      return narrow || name === '' ? `:${l.port}` : `:${l.port} ${name}`
-    })
 
+    // One borderless row. Each port is a button: a click copies its address.
     const band = (
-      <Box key="ports" borderStyle="round" overflow="hidden" borderColor="subtle" paddingX="sm" gap="xs">
-        <Box flexShrink={0}>
-          <Text color="success" weight="semibold">⇄</Text>
-        </Box>
-        <Box flexShrink={1} minWidth={0} overflow="hidden">
-          <Text wrap="truncate">{parts.join(' · ')}</Text>
-        </Box>
+      <Box key="ports" overflow="hidden" paddingX="sm" gap="sm">
+        <Text color="#22d3ee" weight="semibold">⇄ Ports</Text>
+        {list.map(l => {
+          const name = label(l)
+          const url = `http://localhost:${l.port}`
+
+          return (
+            <Button key={`port-${l.port}`} plain onPress={press => {
+              void $.ui.copy({ text: url, surface: press.surface })
+              void $.ui.toast(`Copied ${url}`)
+            }}>
+              <Text weight="semibold">{`:${l.port}`}</Text>
+              {narrow || name === '' ? '' : <Text dimColor>{` ${name}`}</Text>}
+            </Button>
+          )
+        })}
       </Box>
     )
 
