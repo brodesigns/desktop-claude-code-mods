@@ -60,7 +60,7 @@ test('the environment name and the files, never another value, on terminal and d
     const ui = await $.ui.mount({ ...BAND, surface })
     const title = await ui.find({ type: 'Text', text: /◉/ })
     expect(title?.text).toBe('◉ development')
-    expect(title?.props.color).toBe('#22d3ee')
+    expect(title?.props.color).toBeUndefined()
     expect((await ui.find({ type: 'Text', text: /^ ·/ }))?.text).toBe(' · .env.local, .env')
     expect((await ui.find({ type: 'Text', text: new RegExp(SECRET) })) == null).toBe(true)
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)

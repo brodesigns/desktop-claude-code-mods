@@ -1,6 +1,6 @@
 # desktop-claude-code-mods
 
-Claude Code mods (plugins with a hooks module) in `mods/`: bro-cockpit, secret-guard, branch-guard-band, todo-band, env-band, daily-band, deadline-band, limit-band, prompt-library, snippet-pane, kanban-pane, log-viewer, dependency-pane.
+Claude Code mods (plugins with a hooks module) in `mods/`: bro-cockpit, secret-guard, branch-guard-band, todo-band, env-band, daily-band, deadline-band, limit-band, prompt-library, snippet-pane, todo-md-pane, kanban-pane, log-viewer, dependency-pane.
 
 ## Rules
 

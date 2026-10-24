@@ -39,7 +39,7 @@ Files tab: shows read files (`▤ read ×N`, tool Read) and changed files (`✎ 
 
 ## Bands above the prompt
 
-Every band is one borderless row (`paddingX="sm"`), so seven bands cost seven lines, not three each. A band is a plain `Button` around `Text` parts, so the whole row is clickable. Brand accent `#22d3ee` (BroDesigns cyan) for neutral marks; `warning`/`error` roles only for a real problem.
+Every band is one borderless, small row (`paddingX="sm"`), so seven bands cost seven lines, not three each. A band is a plain `Button` around `Text` parts, so the whole row is clickable. Brand accent `#39639E` (BroDesigns blue) as the `▌` marker at the left; text uses `caption` size and the theme's text colour; `warning`/`error` roles only for a real problem.
 
 Git band (`hooks/git.tsx`): `▣ Project ⎇ branch ✓ All committed` or `● N changes (M staged)`, `↑ N to push`, `↓ N to pull`. Narrow: short words. A click opens the cockpit pane. Other bands: the branch guard copies `git switch -c `, daily, deadline and limit show their detail in a toast, todo and env copy their file names.
 

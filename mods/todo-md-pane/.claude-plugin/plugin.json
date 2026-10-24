@@ -1,0 +1,8 @@
+{
+  "name": "todo-md-pane",
+  "version": "0.1.0",
+  "description": "Pane that shows the open items of the project's todo.md as a checklist; ticking an item removes its line from the file, with undo",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

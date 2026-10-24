@@ -31,6 +31,7 @@ First public version, tested with Claude Code 2.1.308.
 
 - `prompt-library`: saved prompts with search and placeholders, inserted with `/p`.
 - `snippet-pane`: code snippets per project, secrets redacted.
+- `todo-md-pane`: open items of the project's todo.md as a checklist; ticking removes the line, with undo.
 - `kanban-pane`: small board per project with open, in progress and done.
 - `log-viewer`: output of the latest Bash calls with filter and search.
 - `dependency-pane`: project dependencies, checked with `npm outdated` on request.

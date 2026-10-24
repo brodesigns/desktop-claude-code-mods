@@ -184,13 +184,14 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm">
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Text color="#39639E" size="caption">▌</Text>
           <Button key="daily" plain onPress={press => {
             void $.ui.copy({ text: `Today: ${parts.join(' · ')}`, surface: press.surface })
             void $.ui.toast('Copied today\'s summary')
           }}>
-            <Text color="#22d3ee" weight="semibold">☀ Today </Text>
-            <Text dimColor>{parts.join(' · ')}</Text>
+            <Text size="caption" weight="semibold">☀ Today </Text>
+            <Text size="caption" dimColor>{parts.join(' · ')}</Text>
           </Button>
         </Box>
         {below}

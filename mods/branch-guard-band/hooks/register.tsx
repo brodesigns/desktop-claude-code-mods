@@ -65,13 +65,14 @@ export const register: Register = (on, options) => {
     // One borderless row; a click copies the command that leaves the branch.
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm">
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Text color="#39639E" size="caption">▌</Text>
           <Button key="guard" plain onPress={press => {
             void $.ui.copy({ text: 'git switch -c ', surface: press.surface })
             void $.ui.toast('Copied "git switch -c ", add a branch name')
           }}>
-            <Text color="error" weight="semibold">{`⚠ Working directly on ${branch}`}</Text>
-            {showHint && !isNarrow ? <Text dimColor>{' · click to copy: git switch -c'}</Text> : ''}
+            <Text size="caption" color="error" weight="semibold">{`⚠ Working directly on ${branch}`}</Text>
+            {showHint && !isNarrow ? <Text size="caption" dimColor>{' · click to copy: git switch -c'}</Text> : ''}
           </Button>
         </Box>
         {below}

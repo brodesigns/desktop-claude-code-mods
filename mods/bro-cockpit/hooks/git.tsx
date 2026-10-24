@@ -129,13 +129,14 @@ export const register: Register = (on, options) => {
     // One borderless row; a click opens the cockpit pane.
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm">
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Text color="#39639E" size="caption">▌</Text>
           <Button key="gitband" plain onPress={() => void $.ui.open({ id: PANE, title: 'Cockpit', focus: true })}>
-            <Text color="#22d3ee" weight="semibold">{`▣ ${git.project}`}</Text>
-            {isRepo ? <Text color="#22d3ee">{` ⎇ ${git.branch}`}</Text> : ''}
-            {isRepo ? <Text color={state.tone} weight="semibold">{`  ${state.text}`}</Text> : ''}
-            {git.ahead > 0 ? <Text color="permission">{narrow ? `  ↑${git.ahead}` : `  ↑ ${git.ahead} to push`}</Text> : ''}
-            {git.behind > 0 ? <Text color="warning">{narrow ? `  ↓${git.behind}` : `  ↓ ${git.behind} to pull`}</Text> : ''}
+            <Text size="caption" weight="semibold">{`▣ ${git.project}`}</Text>
+            {isRepo ? <Text size="caption">{` ⎇ ${git.branch}`}</Text> : ''}
+            {isRepo ? <Text size="caption" color={state.tone} weight="semibold">{`  ${state.text}`}</Text> : ''}
+            {git.ahead > 0 ? <Text size="caption" color="permission">{narrow ? `  ↑${git.ahead}` : `  ↑ ${git.ahead} to push`}</Text> : ''}
+            {git.behind > 0 ? <Text size="caption" color="warning">{narrow ? `  ↓${git.behind}` : `  ↓ ${git.behind} to pull`}</Text> : ''}
           </Button>
         </Box>
         {below}

@@ -143,13 +143,14 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm">
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Text color="#39639E" size="caption">▌</Text>
           <Button key="todo" plain onPress={press => {
             void $.ui.copy({ text: s.files.join('\n'), surface: press.surface })
             void $.ui.toast('Copied the files with open markers')
           }}>
-            <Text color={isLoud ? 'warning' : '#22d3ee'} weight="semibold">{label(s)}</Text>
-            {isNarrow ? '' : <Text dimColor>{` · ${s.files.join(', ')}`}</Text>}
+            <Text size="caption" color={isLoud ? 'warning' : undefined} weight="semibold">{label(s)}</Text>
+            {isNarrow ? '' : <Text size="caption" dimColor>{` · ${s.files.join(', ')}`}</Text>}
           </Button>
         </Box>
         {below}

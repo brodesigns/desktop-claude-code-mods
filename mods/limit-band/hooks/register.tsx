@@ -92,6 +92,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box overflow="hidden" paddingX="sm" gap="md">
+          <Text color="#39639E" size="caption">▌</Text>
           {rows.map(r => {
             const t = toneOf(r.percent)
             const left = r.resetsAt - s.at
@@ -99,11 +100,11 @@ export const register: Register = (on, options) => {
             return (
               <Box key={`lim-${r.kind}`} flexShrink={1} minWidth={0} overflow="hidden">
                 <Button plain key={`lim-btn-${r.kind}`} onPress={() => void $.ui.toast(`${LABEL[r.kind] ?? r.kind} ${pct(r.percent)}${r.resetsAt > 0 ? ` · resets in ${span(left)} (${clockAt(r.resetsAt, s.at)})` : ''}`)}>
-                  <Text color={t === 'neutral' ? undefined : t} weight="semibold">
+                  <Text size="caption" color={t === 'neutral' ? undefined : t} weight="semibold">
                     {MARK[t]} {LABEL[r.kind] ?? r.kind} {pct(r.percent)}
                   </Text>
                   {r.resetsAt > 0 ? (
-                    <Text dimColor>
+                    <Text size="caption" dimColor>
                       {` · ↻ ${span(left)}`}
                     </Text>
                   ) : (

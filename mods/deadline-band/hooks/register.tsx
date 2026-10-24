@@ -159,12 +159,13 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm">
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Text color="#39639E" size="caption">▌</Text>
           <Button key="deadline" plain onPress={() => void $.ui.toast(`${deadline.text} ${distance(deadline.at, now)} · ${dateLabel(deadline.at, deadline.hasTime, now)}`)}>
-            <Text color={tone === 'neutral' ? '#22d3ee' : tone} weight="semibold">
+            <Text size="caption" color={tone === 'neutral' ? undefined : tone} weight="semibold">
               {tone === 'error' ? '⚠' : '⏳'} {deadline.text} {distance(deadline.at, now)}
             </Text>
-            {narrow ? '' : <Text dimColor>{` · ${dateLabel(deadline.at, deadline.hasTime, now)}`}</Text>}
+            {narrow ? '' : <Text size="caption" dimColor>{` · ${dateLabel(deadline.at, deadline.hasTime, now)}`}</Text>}
           </Button>
         </Box>
         {below}

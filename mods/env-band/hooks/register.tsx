@@ -115,13 +115,14 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm">
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Text color="#39639E" size="caption">▌</Text>
           <Button key="env" plain onPress={press => {
             void $.ui.copy({ text: env.files.join('\n'), surface: press.surface })
             void $.ui.toast('Copied the env file names')
           }}>
-            <Text color={env.tone === 'info' ? '#22d3ee' : color} weight="semibold">{title}</Text>
-            {isNarrow ? '' : <Text dimColor>{` · ${env.files.join(', ')}`}</Text>}
+            <Text size="caption" color={env.tone === 'info' ? undefined : color} weight="semibold">{title}</Text>
+            {isNarrow ? '' : <Text size="caption" dimColor>{` · ${env.files.join(', ')}`}</Text>}
           </Button>
         </Box>
         {below}
