@@ -26,7 +26,6 @@ First public version, tested with Claude Code 2.1.308.
 - `daily-band`: today's working time, cost, turns and commits across all sessions.
 - `deadline-band`: countdown to the project deadline set with `/deadline`.
 - `limit-band`: 5 hour and 7 day limits with a countdown, above a threshold.
-- `port-band`: local dev servers and the ports they listen on.
 
 ### Panes next to the chat
 

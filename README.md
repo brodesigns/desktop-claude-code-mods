@@ -4,11 +4,11 @@
 ![Claude Code](https://img.shields.io/badge/Claude_Code-mods_(early_access)-D97757)
 ![Tested with](https://img.shields.io/badge/tested_with-Claude_Code_2.1.308-blue)
 ![Zero model tokens](https://img.shields.io/badge/model_tokens-zero-success)
-![Mods](https://img.shields.io/badge/mods-14-informational)
+![Mods](https://img.shields.io/badge/mods-13-informational)
 
-**Plugins (mods) for Claude Code in the Claude desktop app.** Add a live session dashboard pane next to the chat, small status bands above the prompt (git, TODOs, branch warning, environment, usage limits, deadline, daily totals, dev ports), panes for prompts, snippets, a kanban board, Bash logs and dependencies, and a hook that stops Claude from writing API keys and passwords into files or shell commands. Mods run in the Claude Code plugin engine, not in the model, so they cost no extra tokens.
+**Plugins (mods) for Claude Code in the Claude desktop app.** Add a live session dashboard pane next to the chat, small status bands above the prompt (git, TODOs, branch warning, environment, usage limits, deadline, daily totals), panes for prompts, snippets, a kanban board, Bash logs and dependencies, and a hook that stops Claude from writing API keys and passwords into files or shell commands. Mods run in the Claude Code plugin engine, not in the model, so they cost no extra tokens.
 
-14 mods, one marketplace. Every mod is its own plugin: install only the ones you want.
+13 mods, one marketplace. Every mod is its own plugin: install only the ones you want.
 
 ### Dashboard
 
@@ -34,7 +34,6 @@ Bands appear only when there is something to show, and they stack.
 | [`daily-band`](mods/daily-band) | Today's working time, cost, turns and commits, added up across all sessions of the day |
 | [`deadline-band`](mods/deadline-band) | Countdown to the project deadline set with `/deadline <date> [text]`, colored by urgency |
 | [`limit-band`](mods/limit-band) | 5 hour and 7 day usage limits with a countdown to the reset, shown only above a threshold |
-| [`port-band`](mods/port-band) | Which local dev servers are listening on which port right now |
 
 ### Panes next to the chat
 
@@ -106,7 +105,7 @@ Screenshots are coming soon.
 
 ## Install Claude Code mods
 
-The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 14 mods.
+The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 13 mods.
 
 **Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app.
 
@@ -117,7 +116,7 @@ claude plugin marketplace add brodesigns/desktop-claude-code-mods
 claude plugin install <mod>@desktop-claude-code-mods
 ```
 
-Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `todo-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `port-band`, `prompt-library`, `snippet-pane`, `kanban-pane`, `log-viewer`, `dependency-pane`.
+Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `todo-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `kanban-pane`, `log-viewer`, `dependency-pane`.
 
 Example: `claude plugin install bro-cockpit@desktop-claude-code-mods`.
 
@@ -152,7 +151,7 @@ The full command list of each mod is in its README.
 - Claude Code with plugin hooks module support, tested with version 2.1.308.
 - Mods are an early access feature and may not be enabled in every version or account.
 - Optional: `git` for the cockpit and the git-based bands. Without it they show only the folder name or stay hidden.
-- Optional: `lsof` or `ss` for `port-band`, `npm` for the outdated check in `dependency-pane`.
+- Optional: `npm` for the outdated check in `dependency-pane`.
 
 ## FAQ
 
@@ -170,7 +169,7 @@ The hooks, bands and commands work in both. The panes draw graphics in the deskt
 
 ### What do the mods access on my machine?
 
-Programs that mods run locally: `git` (cockpit, `todo-band`, `branch-guard-band`, `deadline-band`, `daily-band`), `lsof` or `ss` (`port-band`) and `npm outdated` only on a button press (`dependency-pane`). The guards run nothing. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals) stays in the Claude Code plugin store on your machine.
+Programs that mods run locally: `git` (cockpit, `todo-band`, `branch-guard-band`, `deadline-band`, `daily-band`) and `npm outdated` only on a button press (`dependency-pane`). The guards run nothing. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals) stays in the Claude Code plugin store on your machine.
 
 ### Can I use only the secret guard?
 

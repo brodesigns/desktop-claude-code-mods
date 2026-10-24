@@ -41,7 +41,7 @@ Files tab: shows read files (`▤ read ×N`, tool Read) and changed files (`✎ 
 
 Every band is one borderless row (`paddingX="sm"`), so seven bands cost seven lines, not three each. A band is a plain `Button` around `Text` parts, so the whole row is clickable. Brand accent `#22d3ee` (BroDesigns cyan) for neutral marks; `warning`/`error` roles only for a real problem.
 
-Git band (`hooks/git.tsx`): `▣ Project ⎇ branch ✓ All committed` or `● N changes (M staged)`, `↑ N to push`, `↓ N to pull`. Narrow: short words. A click opens the cockpit pane. Other bands: ports copy `http://localhost:<port>`, the branch guard copies `git switch -c `, daily, deadline and limit show their detail in a toast, todo and env copy their file names. macOS system listeners (AirPlay on :5000, `ControlCe`) are never shown as ports.
+Git band (`hooks/git.tsx`): `▣ Project ⎇ branch ✓ All committed` or `● N changes (M staged)`, `↑ N to push`, `↓ N to pull`. Narrow: short words. A click opens the cockpit pane. Other bands: the branch guard copies `git switch -c `, daily, deadline and limit show their detail in a toast, todo and env copy their file names.
 
 Project name: the folder of the main repository (`git rev-parse --git-common-dir`), so a worktree also shows the real project name. Without a git repository, the folder name. The same info appears as one line in the head of the cockpit pane.
 

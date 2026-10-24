@@ -46,11 +46,6 @@
       "description": "Band above the prompt: today's working time, cost, turns and commits, added up across all sessions of the day"
     },
     {
-      "name": "port-band",
-      "source": "./mods/port-band",
-      "description": "Band above the prompt: which local dev servers are listening on which port right now (lsof or ss, every 15 seconds)"
-    },
-    {
       "name": "prompt-library",
       "source": "./mods/prompt-library",
       "description": "Prompt library: saved prompts for all projects or just this one, with search and placeholders, inserted into the prompt box with /p"

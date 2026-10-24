@@ -135,15 +135,6 @@ d.ellipse((cx - 110, cy - 110, cx + 110, cy + 110), fill=WHITE)
 d.rounded_rectangle((520, 1460, 1528, 1580), radius=60, fill=(255, 255, 255, 60))
 finish(img, "limit-band")
 
-# port-band: a port number
-img = base((12, 70, 64), (6, 36, 34), (94, 234, 212))
-card(img, (260, 640, 1788, 1408), 190, (10, 30, 30))
-d = ImageDraw.Draw(img)
-d.rounded_rectangle((260, 640, 1788, 1408), radius=190, outline=(94, 234, 212), width=22)
-text_center(d, 1024, 1010, ":3000", 470, (94, 234, 212))
-for x in (700, 1024, 1348):
-    d.ellipse((x - 34, 1500, x + 34, 1568), fill=(94, 234, 212))
-finish(img, "port-band")
 
 # prompt-library: stacked cards, the top one with a prompt sign
 img = base((34, 48, 104), (16, 22, 58), (130, 160, 255))
