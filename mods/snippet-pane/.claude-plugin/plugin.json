@@ -1,0 +1,16 @@
+{
+  "name": "snippet-pane",
+  "version": "0.1.0",
+  "description": "Code snippets per project: save with /snippet, a pane with language, preview, insert and copy; keys are redacted",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "previewLines": {
+      "type": "number",
+      "title": "Preview lines",
+      "description": "How many lines a collapsed snippet shows (1 to 30).",
+      "default": 4
+    }
+  }
+}

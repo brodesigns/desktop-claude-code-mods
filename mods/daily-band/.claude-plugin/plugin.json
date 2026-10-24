@@ -1,0 +1,22 @@
+{
+  "name": "daily-band",
+  "version": "0.1.0",
+  "description": "Band above the prompt: today's working time, cost, turns and commits, summed over every session of the day",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "show": {
+      "type": "boolean",
+      "title": "Show band",
+      "description": "Off: the band stays empty, counting goes on all the same.",
+      "default": true
+    },
+    "commits": {
+      "type": "boolean",
+      "title": "Count today's commits",
+      "description": "Counts today's commits in the current project with git (own email address from git config).",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "port-band",
+  "version": "0.1.0",
+  "description": "Band above the prompt: which local dev servers are listening on which port right now (lsof or ss, every 15 seconds)",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "ports": {
+      "type": "string",
+      "title": "Ports",
+      "description": "Comma separated list of the ports the band shows, or \"all\" for every own port from 1024 up",
+      "default": "3000,3001,4200,5000,5173,8000,8080,8888"
+    },
+    "intervalSeconds": {
+      "type": "number",
+      "title": "Poll every (seconds)",
+      "description": "How often the ports are polled, 5 to 300 seconds",
+      "default": 15,
+      "min": 5,
+      "max": 300
+    }
+  }
+}

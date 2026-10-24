@@ -1,0 +1,79 @@
+{
+  "name": "desktop-claude-code-mods",
+  "owner": {
+    "name": "BroDesigns"
+  },
+  "description": "Mods for Claude Code in the Claude desktop app: a dashboard pane, bands above the prompt, panes next to the chat and guards",
+  "plugins": [
+    {
+      "name": "bro-cockpit",
+      "source": "./mods/bro-cockpit",
+      "description": "Dashboard pane with overview, files, subagent tree, tool calls, context and rate limit meter, errors and project ideas, plus a git band above the prompt; every tab can be switched off"
+    },
+    {
+      "name": "secret-guard",
+      "source": "./mods/secret-guard",
+      "description": "Blocks API keys, tokens, private keys and plaintext passwords in Write, Edit, MultiEdit, NotebookEdit and Bash"
+    },
+    {
+      "name": "todo-band",
+      "source": "./mods/todo-band",
+      "description": "Band above the prompt: counts TODO, FIXME, HACK and XXX in the changed files of the working tree and in the files Claude wrote in this session"
+    },
+    {
+      "name": "branch-guard-band",
+      "source": "./mods/branch-guard-band",
+      "description": "Band above the prompt: red warning when you work directly on a protected branch such as main or master. Display only, blocks nothing"
+    },
+    {
+      "name": "env-band",
+      "source": "./mods/env-band",
+      "description": "Band above the prompt: shows the active environment (NODE_ENV, APP_ENV or ENV from the project's .env files) and which .env files exist. Shows and stores no other values"
+    },
+    {
+      "name": "limit-band",
+      "source": "./mods/limit-band",
+      "description": "Band above the prompt: 5 hour and 7 day usage limits with a countdown to the reset, shown only above a threshold"
+    },
+    {
+      "name": "deadline-band",
+      "source": "./mods/deadline-band",
+      "description": "Band above the prompt: countdown to the project deadline, set with /deadline <date> [text], colored by urgency"
+    },
+    {
+      "name": "daily-band",
+      "source": "./mods/daily-band",
+      "description": "Band above the prompt: today's working time, cost, turns and commits, added up across all sessions of the day"
+    },
+    {
+      "name": "port-band",
+      "source": "./mods/port-band",
+      "description": "Band above the prompt: which local dev servers are listening on which port right now (lsof or ss, every 15 seconds)"
+    },
+    {
+      "name": "prompt-library",
+      "source": "./mods/prompt-library",
+      "description": "Prompt library: saved prompts for all projects or just this one, with search and placeholders, inserted into the prompt box with /p"
+    },
+    {
+      "name": "snippet-pane",
+      "source": "./mods/snippet-pane",
+      "description": "Code snippets per project: save with /snippet, pane with language, preview, insert and copy; secrets are redacted"
+    },
+    {
+      "name": "kanban-pane",
+      "source": "./mods/kanban-pane",
+      "description": "Small kanban board per project with open, in progress and done columns: add cards by command, move and delete them in the pane"
+    },
+    {
+      "name": "log-viewer",
+      "source": "./mods/log-viewer",
+      "description": "Pane with the output of the latest Bash calls in this session: command, exit status, duration, output with errors and warnings highlighted, filter and search"
+    },
+    {
+      "name": "dependency-pane",
+      "source": "./mods/dependency-pane",
+      "description": "Pane with the project's dependencies from package.json, requirements.txt, pyproject.toml and composer.json, checked with npm outdated at the push of a button"
+    }
+  ]
+}

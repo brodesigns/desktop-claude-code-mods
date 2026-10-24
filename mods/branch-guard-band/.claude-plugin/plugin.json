@@ -1,0 +1,22 @@
+{
+  "name": "branch-guard-band",
+  "version": "0.1.0",
+  "description": "Band above the prompt: warns in red when you work directly on a protected branch such as main or master. Display only, blocks nothing",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "branches": {
+      "type": "string",
+      "title": "Protected branches",
+      "description": "Comma separated, * as wildcard (e.g. main,master,release/*)",
+      "default": "main,master"
+    },
+    "hint": {
+      "type": "boolean",
+      "title": "Hint",
+      "description": "Show the command for a new branch next to the warning",
+      "default": true
+    }
+  }
+}

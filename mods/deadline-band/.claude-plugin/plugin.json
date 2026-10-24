@@ -1,0 +1,16 @@
+{
+  "name": "deadline-band",
+  "version": "0.1.0",
+  "description": "Band above the prompt: countdown to the project's deadline, set with /deadline <date> [text], coloured by urgency",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "fromDays": {
+      "type": "number",
+      "title": "Show only this many days ahead",
+      "description": "The band appears only when the deadline is at most this many days away. 0 always shows it.",
+      "default": 0
+    }
+  }
+}

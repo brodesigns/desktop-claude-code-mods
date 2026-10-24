@@ -1,0 +1,19 @@
+{
+  "name": "secret-guard",
+  "version": "0.1.0",
+  "description": "Blocks API keys, tokens, private keys and plaintext passwords in Write, Edit, MultiEdit, NotebookEdit and Bash tool calls of Claude Code",
+  "author": {
+    "name": "BroDesigns"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "hooks",
+    "security",
+    "secret-scanning",
+    "api-keys",
+    "guard"
+  ],
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods"
+}

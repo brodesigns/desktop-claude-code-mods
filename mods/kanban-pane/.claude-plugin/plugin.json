@@ -1,0 +1,16 @@
+{
+  "name": "kanban-pane",
+  "version": "0.1.0",
+  "description": "Small kanban board per project with Open, In progress and Done: add cards with /card, move and delete them in the pane",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "doneDays": {
+      "type": "number",
+      "title": "Fold Done after days",
+      "description": "Done cards finished longer ago than this many days are folded away (default 14).",
+      "default": 14
+    }
+  }
+}

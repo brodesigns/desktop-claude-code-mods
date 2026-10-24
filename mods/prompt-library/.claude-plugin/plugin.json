@@ -1,0 +1,8 @@
+{
+  "name": "prompt-library",
+  "version": "0.1.0",
+  "description": "Prompt library: saved prompts for all projects or only this one, with search and placeholders, put into the prompt box with /p",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

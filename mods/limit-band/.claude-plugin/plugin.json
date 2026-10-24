@@ -1,0 +1,22 @@
+{
+  "name": "limit-band",
+  "version": "0.1.0",
+  "description": "Band above the prompt: 5-hour and 7-day limit with a countdown to the reset, visible only above a threshold",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "threshold": {
+      "type": "number",
+      "title": "Threshold in percent",
+      "description": "The band appears only when a limit is used at least this much (0 to 100).",
+      "default": 50
+    },
+    "sevenDay": {
+      "type": "boolean",
+      "title": "Show 7-day limit",
+      "description": "Also show the 7-day limit when it is above the threshold.",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,76 @@
+// The little worker in three moods. Pure SMIL, so each animates with no redraw.
+const EYE_BLINK = 'values="1;1;0;1" keyTimes="0;0.92;0.96;1" dur="3.2s" repeatCount="indefinite"'
+
+// Working: bobbing, blinking, swinging a hammer with sparks on every hit.
+export const WORKER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 80">
+<ellipse cx="40" cy="74" rx="21" ry="4" fill="#000" opacity=".16"><animate attributeName="rx" values="21;18;21" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" dur="0.8s" repeatCount="indefinite"/></ellipse>
+<g>
+<animateTransform attributeName="transform" type="translate" values="0 0;0 -2.6;0 0" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" dur="0.8s" repeatCount="indefinite"/>
+<ellipse cx="30" cy="70" rx="6" ry="4" fill="#B85C3C"/><ellipse cx="50" cy="70" rx="6" ry="4" fill="#B85C3C"/>
+<rect x="20" y="32" width="40" height="38" rx="18" fill="#D97757"/>
+<ellipse cx="40" cy="60" rx="12" ry="8" fill="#F2A583" opacity=".55"/>
+<path d="M22 41a18 16 0 0 1 36 0z" fill="#F2C14E"/>
+<path d="M30 30a14 12 0 0 1 12-6" stroke="#FFE08A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<rect x="18" y="39" width="44" height="5" rx="2.5" fill="#E0A82E"/>
+<circle cx="40" cy="23" r="3.2" fill="#E0A82E"/>
+<g>
+<ellipse cx="32" cy="53" rx="4.2" ry="4.8" fill="#2A1D17"><animate attributeName="ry" values="4.8;4.8;0.6;4.8" keyTimes="0;0.92;0.96;1" dur="3.2s" repeatCount="indefinite"/></ellipse>
+<ellipse cx="48" cy="53" rx="4.2" ry="4.8" fill="#2A1D17"><animate attributeName="ry" values="4.8;4.8;0.6;4.8" keyTimes="0;0.92;0.96;1" dur="3.2s" repeatCount="indefinite"/></ellipse>
+<circle cx="33.6" cy="51.2" r="1.6" fill="#fff"><animate attributeName="opacity" ${EYE_BLINK}/></circle>
+<circle cx="49.6" cy="51.2" r="1.6" fill="#fff"><animate attributeName="opacity" ${EYE_BLINK}/></circle></g>
+<circle cx="26" cy="60" r="3.2" fill="#FF8FA3" opacity=".75"/><circle cx="54" cy="60" r="3.2" fill="#FF8FA3" opacity=".75"/>
+<path d="M36 60q4 4 8 0" stroke="#2A1D17" stroke-width="2" fill="none" stroke-linecap="round"/>
+<g>
+<animateTransform attributeName="transform" type="rotate" values="-35 58 50;32 58 50;-35 58 50" keyTimes="0;0.5;1" dur="0.8s" repeatCount="indefinite"/>
+<line x1="58" y1="50" x2="72" y2="36" stroke="#B85C3C" stroke-width="5.5" stroke-linecap="round"/>
+<rect x="68" y="27" width="12" height="9" rx="2.5" fill="#7C828A" transform="rotate(45 74 31)"/>
+</g>
+</g>
+<g fill="#FFD66B">
+<circle cx="80" cy="52" r="2"><animate attributeName="opacity" values="0;0;1;0" keyTimes="0;0.45;0.5;1" dur="0.8s" repeatCount="indefinite"/></circle>
+<circle cx="85" cy="46" r="1.5"><animate attributeName="opacity" values="0;0;1;0" keyTimes="0;0.47;0.52;1" dur="0.8s" repeatCount="indefinite"/></circle>
+<circle cx="76" cy="58" r="1.5"><animate attributeName="opacity" values="0;0;1;0" keyTimes="0;0.49;0.54;1" dur="0.8s" repeatCount="indefinite"/></circle>
+</g>
+</svg>`
+
+// Done: sitting on a crate with a coffee, happy closed eyes, a heart now and then.
+export const SITTING = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 80">
+<ellipse cx="40" cy="76" rx="26" ry="3.5" fill="#000" opacity=".14"/>
+<rect x="16" y="63" width="48" height="11" rx="3" fill="#C9A66B"/><rect x="16" y="67" width="48" height="1.6" fill="#A98650"/>
+<g>
+<animateTransform attributeName="transform" type="translate" values="0 0;0 -1;0 0" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" dur="3s" repeatCount="indefinite"/>
+<ellipse cx="29" cy="74" rx="6" ry="3.6" fill="#B85C3C"/><ellipse cx="51" cy="74" rx="6" ry="3.6" fill="#B85C3C"/>
+<rect x="21" y="34" width="38" height="34" rx="17" fill="#D97757"/>
+<ellipse cx="40" cy="60" rx="12" ry="7" fill="#F2A583" opacity=".55"/>
+<g transform="rotate(-5 40 40)">
+<path d="M23 43a17 15 0 0 1 34 0z" fill="#F2C14E"/>
+<path d="M31 32a13 11 0 0 1 11-5" stroke="#FFE08A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<rect x="19" y="41" width="42" height="5" rx="2.5" fill="#E0A82E"/>
+<circle cx="40" cy="26" r="3.2" fill="#E0A82E"/></g>
+<path d="M27.5 54q4.5-5.5 9 0" stroke="#2A1D17" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+<path d="M43.5 54q4.5-5.5 9 0" stroke="#2A1D17" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+<circle cx="26" cy="60" r="3.2" fill="#FF8FA3" opacity=".8"/><circle cx="54" cy="60" r="3.2" fill="#FF8FA3" opacity=".8"/>
+<path d="M35 59q5 5.5 10 0" stroke="#2A1D17" stroke-width="2" fill="none" stroke-linecap="round"/>
+<circle cx="59" cy="58" r="3.6" fill="#B85C3C"/>
+<rect x="59" y="50" width="12" height="12" rx="3" fill="#FFF8EE" stroke="#C9A66B" stroke-width="0.8"/><path d="M71 53q5 0 5 4t-5 4" stroke="#C9A66B" stroke-width="2" fill="none"/>
+<rect x="60" y="51.5" width="10" height="3" rx="1.5" fill="#8A5A3A"/>
+<path d="M63 47q-2-3 0-6" stroke="#9AA0A8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".7"><animate attributeName="opacity" values="0;.8;0" dur="2s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0 2;0 -3" dur="2s" repeatCount="indefinite"/></path>
+<path d="M68 47q-2-3 0-6" stroke="#9AA0A8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".7"><animate attributeName="opacity" values="0;.8;0" dur="2s" begin="0.8s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0 2;0 -3" dur="2s" begin="0.8s" repeatCount="indefinite"/></path>
+</g>
+<text x="64" y="30" font-size="11" fill="#FF6F8E" text-anchor="middle">♥<animate attributeName="opacity" values="0;0;1;0" keyTimes="0;0.2;0.4;1" dur="3.4s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0 6;0 -8" dur="3.4s" repeatCount="indefinite"/></text>
+</svg>`
+
+// Failed: sitting tired with squeezed eyes and a sweat drop.
+export const SITTING_FAILED = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 80">
+<ellipse cx="40" cy="76" rx="26" ry="3.5" fill="#000" opacity=".14"/>
+<rect x="16" y="63" width="48" height="11" rx="3" fill="#C9A66B"/><rect x="16" y="67" width="48" height="1.6" fill="#A98650"/>
+<ellipse cx="29" cy="74" rx="6" ry="3.6" fill="#B85C3C"/><ellipse cx="51" cy="74" rx="6" ry="3.6" fill="#B85C3C"/>
+<rect x="21" y="36" width="38" height="32" rx="16" fill="#D97757"/>
+<ellipse cx="40" cy="61" rx="12" ry="6" fill="#F2A583" opacity=".5"/>
+<g transform="rotate(8 40 42)">
+<path d="M23 44a17 15 0 0 1 34 0z" fill="#F2C14E"/><rect x="19" y="42" width="42" height="5" rx="2.5" fill="#E0A82E"/><circle cx="40" cy="27" r="3.2" fill="#E0A82E"/></g>
+<path d="M28 52l7 3-7 3M52 52l-7 3 7 3" stroke="#2A1D17" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="26" cy="61" r="3" fill="#FF8FA3" opacity=".5"/><circle cx="54" cy="61" r="3" fill="#FF8FA3" opacity=".5"/>
+<path d="M36 63q2-2.5 4 0t4 0" stroke="#2A1D17" stroke-width="2" fill="none" stroke-linecap="round"/>
+<path d="M62 40q3 5 0 7t-3-2q0-3 3-5z" fill="#5AA9DD"><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="2s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0 -3;0 5" dur="2s" repeatCount="indefinite"/></path>
+</svg>`

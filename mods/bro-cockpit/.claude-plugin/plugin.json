@@ -1,0 +1,72 @@
+{
+  "name": "bro-cockpit",
+  "version": "0.1.0",
+  "description": "Dashboard pane for Claude Code in the desktop app: overview, files read and changed, subagent tree, tool calls, context and rate limit meter, errors and project ideas, plus a git status band above the prompt",
+  "author": {
+    "name": "BroDesigns"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "claude-code",
+    "dashboard",
+    "pane",
+    "subagents",
+    "git",
+    "statusline",
+    "context-window",
+    "rate-limit"
+  ],
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "userConfig": {
+    "show_home": {
+      "type": "boolean",
+      "title": "Overview tab",
+      "description": "Show the Overview tab in the cockpit",
+      "default": true
+    },
+    "show_files": {
+      "type": "boolean",
+      "title": "Files tab",
+      "description": "Show the Files tab in the cockpit",
+      "default": true
+    },
+    "show_agents": {
+      "type": "boolean",
+      "title": "Subagents tab",
+      "description": "Show the Subagents tab in the cockpit",
+      "default": true
+    },
+    "show_calls": {
+      "type": "boolean",
+      "title": "Tool calls tab",
+      "description": "Show the Tool calls tab in the cockpit",
+      "default": true
+    },
+    "show_meter": {
+      "type": "boolean",
+      "title": "Instruments tab",
+      "description": "Show the Instruments tab in the cockpit",
+      "default": true
+    },
+    "show_errors": {
+      "type": "boolean",
+      "title": "Errors tab",
+      "description": "Show the Errors tab in the cockpit",
+      "default": true
+    },
+    "show_project": {
+      "type": "boolean",
+      "title": "Project tab",
+      "description": "Show the Project tab in the cockpit",
+      "default": true
+    },
+    "show_gitband": {
+      "type": "boolean",
+      "title": "Git band above the prompt",
+      "description": "Show project, branch and changes above the prompt",
+      "default": true
+    }
+  }
+}
