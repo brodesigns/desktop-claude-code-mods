@@ -1,43 +1,24 @@
 import type { EngineInterface } from 'claude-code'
 
-import type { TodoSummary } from '../types'
-import { changedPaths, countMarkers, isSkipped, joinPath, parseMarkers, summarize } from './markerscan'
-import type { FileCounts } from './markerscan'
+import type { TodoHit, TodoSummary } from '../types'
+import { hitsIn, isSkipped, joinPath, parseGrep, parseMarkers, relativeTo, summarize } from './markerscan'
 
-// Caps: at most this many files per scan, none bigger than this, at most this many session files kept.
-const MAX_FILES = 200
+// Caps: session files only matter without git; none bigger than this is read, at most this many are kept.
 const MAX_BYTES = 512 * 1024
 const MAX_SESSION = 100
 
 let config = { markers: parseMarkers(''), session: true }
-// Files Claude wrote or edited this session (absolute). A reload starts over: the poll still has git's view.
+// Files Claude wrote or edited this session (absolute). Used only in a project without git.
 const sessionFiles = new Set<string>()
-// Counts per file, kept while mtime and size stay; only changed files are read again.
-const cache = new Map<string, { stamp: string; counts: number[] }>()
 let known = { cwd: '', top: '' }
 
 // A missing git binary makes process.run throw; that counts as "no repository".
-async function git($: EngineInterface, args: string[]) {
+async function git($: EngineInterface, args: string[], timeoutMs = 10_000) {
   try {
-    return await $.process.run(['git', '--no-optional-locks', ...args], { timeoutMs: 10_000 })
+    return await $.process.run(['git', '--no-optional-locks', ...args], { timeoutMs })
   } catch {
     return null
   }
-}
-
-async function countFile($: EngineInterface, path: string): Promise<number[] | null> {
-  if (isSkipped(path)) return null
-  const stat = await $.fs.stat(path).catch(() => null)
-  if (stat === null || stat.kind !== 'file' || stat.size > MAX_BYTES) return null
-  const stamp = `${stat.mtimeMs}:${stat.size}`
-  const hit = cache.get(path)
-  if (hit !== undefined && hit.stamp === stamp) return hit.counts
-  const text = await $.fs.read(path).catch(() => null)
-  if (text === null) return null
-  const counts = countMarkers(text, config.markers)
-  cache.set(path, { stamp, counts })
-
-  return counts
 }
 
 export function configure(markers: string, session: boolean) {
@@ -46,29 +27,32 @@ export function configure(markers: string, session: boolean) {
 
 export const isTrackingSession = () => config.session
 
-// Counts the markers in the changed files of the working tree and in the files Claude wrote. Null when there is none.
+// In a repository: one `git grep` over every tracked file and every untracked one that is not ignored, so a TODO
+// in the middle of any file counts. Without git: the files Claude wrote. Null when there is no hit.
 export async function scanMarkers($: EngineInterface): Promise<TodoSummary | null> {
   const cwd = await $.session.cwd()
   if (cwd !== known.cwd) {
     const res = await git($, ['rev-parse', '--show-toplevel'])
     known = { cwd, top: res !== null && res.exitCode === 0 ? res.stdout.trim() : '' }
   }
-  const paths = new Set<string>()
+
+  let hits: TodoHit[] = []
   if (known.top !== '') {
-    const res = await git($, ['status', '--porcelain=v1', '-z', '-uall'])
-    if (res !== null && res.exitCode === 0) for (const p of changedPaths(res.stdout)) paths.add(joinPath(known.top, p))
+    // Exit 1 means "no match"; any other failure reads as "nothing found this time".
+    const res = await git($, ['grep', '-I', '-n', '-w', '--untracked', '--full-name', '--no-color', ...config.markers.flatMap(m => ['-e', m])], 15_000)
+    if (res !== null && (res.exitCode === 0 || res.exitCode === 1)) hits = parseGrep(res.stdout, config.markers)
+  } else if (config.session) {
+    for (const path of sessionFiles) {
+      if (isSkipped(path)) continue
+      const stat = await $.fs.stat(path).catch(() => null)
+      if (stat === null || stat.kind !== 'file' || stat.size > MAX_BYTES) continue
+      const text = await $.fs.read(path).catch(() => null)
+      if (typeof text === 'string') hits.push(...hitsIn(relativeTo(cwd, path), text, config.markers))
+    }
   }
-  if (config.session) for (const p of sessionFiles) paths.add(p)
 
-  const list = [...paths].slice(0, MAX_FILES)
-  const found: FileCounts[] = []
-  for (const path of list) {
-    const counts = await countFile($, path)
-    if (counts !== null) found.push({ path, counts })
-  }
-  for (const path of cache.keys()) if (!paths.has(path)) cache.delete(path)
-
-  const fresh = summarize(found, config.markers, known.top !== '' ? known.top : cwd)
+  const root = known.top !== '' ? known.top : cwd
+  const fresh = summarize(hits, config.markers, root)
 
   return fresh.fileCount > 0 ? fresh : null
 }

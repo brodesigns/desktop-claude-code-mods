@@ -6,7 +6,7 @@ import { refreshCounts } from './counts'
 import { isNarrow } from './layout'
 import { configure, isTrackingSession, scanMarkers, trackFile } from './markers'
 import { label } from './markerscan'
-import { openInProject } from './open'
+import { openTarget } from './open'
 import { setIfChanged } from './state'
 import { emptyState, legend, more, sectionTitle, SPACE, tile, tiles, toolbar, TYPE } from './style'
 import { append, entriesFrom, findName, parse, remove, restore } from './todomd'
@@ -20,7 +20,7 @@ const adding = atom({ plugin: 'bro-cockpit', key: 'todoAdding' } as const, false
 const POLL_MS = 5_000
 // Code markers cost a git call and file reads: looked at less often.
 const MARKER_POLL_MS = 30_000
-const FILES_SHOWN = 8
+const HITS_SHOWN = 15
 // A todo.md with hundreds of lines draws the first of them; the rest is one line.
 const ITEMS_SHOWN = 100
 
@@ -225,16 +225,17 @@ export async function view($: EngineInterface, e: RenderInput) {
 
       {code !== null && sectionTitle(ui, 'sec-code', 'In code', <Text dimColor size={TYPE.label}>{label(code).replace('☐ ', '')}</Text>)}
       {code !== null &&
-        code.files.slice(0, FILES_SHOWN).map(file => (
-          <Box key={`code-${file}`} minWidth={0} overflow="hidden">
-            <Button key={`file-${file}`} plain onPress={() => void openInProject($, file)}>
-              <Text size={TYPE.label} wrap="truncate">{`▸ ${file}`}</Text>
+        code.hits.slice(0, HITS_SHOWN).map(hit => (
+          <Box key={`hit-${hit.file}:${hit.line}`} minWidth={0} overflow="hidden">
+            <Button key={`file-${hit.file}:${hit.line}`} plain onPress={() => void openTarget($, `${code.root}/${hit.file}`)}>
+              <Text size={TYPE.label} wrap="truncate">{`▸ ${hit.file}:${hit.line}`}</Text>
+              <Text size={TYPE.label} dimColor>{`  ${hit.text}`}</Text>
             </Button>
           </Box>
         ))}
-      {code !== null && more(ui, 'code-more', code.files.length - FILES_SHOWN, 'more files')}
+      {code !== null && more(ui, 'code-more', codeTotal - Math.min(HITS_SHOWN, code.hits.length), 'more in the project')}
 
-      {data !== null && legend(ui, 'todo-legend', 'Click an entry to tick it: its line (with sub-lines) is removed from the file, "undo" puts it back. Entries already marked [x] are not shown. A file under "In code" opens in your editor.')}
+      {data !== null && legend(ui, 'todo-legend', 'Click an entry to tick it: its line (with sub-lines) is removed from the file, "undo" puts it back. Entries already marked [x] are not shown. A hit under "In code" opens its file in your editor.')}
     </Box>
   )
 }

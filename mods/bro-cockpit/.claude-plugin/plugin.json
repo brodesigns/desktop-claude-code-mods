@@ -1,6 +1,6 @@
 {
   "name": "bro-cockpit",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Dashboard pane for Claude Code in the desktop app: overview, files read and changed, subagent tree, tool calls, context and rate limit meter, errors and project ideas, plus a git status band above the prompt",
   "author": {
     "name": "BroDesigns"
@@ -59,7 +59,7 @@
     "show_todo": {
       "type": "boolean",
       "title": "Todo tab",
-      "description": "Show the Todo tab in the cockpit: the open items of todo.md and the TODO markers in changed code",
+      "description": "Show the Todo tab in the cockpit: the open items of todo.md and the TODO markers found anywhere in the project",
       "default": true
     },
     "show_project": {
@@ -71,13 +71,13 @@
     "markers": {
       "type": "string",
       "title": "Code markers",
-      "description": "Markers the Todo tab counts in changed files, comma separated",
+      "description": "Markers the Todo tab looks for in the whole project, comma separated",
       "default": "TODO,FIXME,HACK,XXX"
     },
     "sessionFiles": {
       "type": "boolean",
       "title": "Session files",
-      "description": "Todo tab: also count files Claude wrote or edited in this session",
+      "description": "Todo tab: in a project without git, also scan the files Claude wrote or edited in this session",
       "default": true
     },
     "show_gitband": {

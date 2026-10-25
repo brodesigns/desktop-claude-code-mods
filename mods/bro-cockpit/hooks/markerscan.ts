@@ -1,4 +1,4 @@
-import type { TodoSummary } from '../types'
+import type { TodoHit, TodoSummary } from '../types'
 
 // Pure helpers: no `$`, no state.
 
@@ -12,34 +12,54 @@ export const parseMarkers = (raw: string): string[] => {
   return unique.length > 0 ? unique : [...DEFAULT_MARKERS]
 }
 
-// One count per marker, in the markers' order. Whole words only, case sensitive (`todo` in prose is not one).
-export const countMarkers = (text: string, markers: readonly string[]): number[] => {
-  if (text.includes('\u0000')) return markers.map(() => 0)
+// Whole word, case sensitive (`todo` in prose is not one). The first marker that occurs in the line names the hit.
+const markerIn = (line: string, markers: readonly string[]): string | null => {
+  let best: { marker: string; at: number } | null = null
+  for (const marker of markers) {
+    const at = line.search(new RegExp(`\\b${marker}\\b`))
+    if (at >= 0 && (best === null || at < best.at)) best = { marker, at }
+  }
 
-  return markers.map(m => text.match(new RegExp(`\\b${m}\\b`, 'g'))?.length ?? 0)
+  return best === null ? null : best.marker
 }
 
-// `git status --porcelain=v1 -z -uall`: "XY path" per entry; a rename or copy is followed by its old path.
-// Deleted files are left out, they have nothing to read.
-export const changedPaths = (stdout: string): string[] => {
-  const parts = stdout.split('\u0000')
-  const out: string[] = []
-  for (let i = 0; i < parts.length; i++) {
-    const entry = parts[i] ?? ''
-    if (entry.length < 4) continue
-    const xy = entry.slice(0, 2)
-    if (xy[0] === 'R' || xy[0] === 'C') i++
-    if (xy.includes('D')) continue
-    out.push(entry.slice(3))
+export const clipLine = (text: string, max = 120) => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+}
+
+// Hits in one file's text, with their line numbers. A file with a NUL byte is binary: none.
+export const hitsIn = (file: string, text: string, markers: readonly string[]): TodoHit[] => {
+  if (text.includes('\u0000')) return []
+  const out: TodoHit[] = []
+  text.split('\n').forEach((line, i) => {
+    const marker = markerIn(line, markers)
+    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(line) })
+  })
+
+  return out
+}
+
+// `git grep -n --full-name` output: `path:line:text` per hit. Lines that do not fit are left out.
+export const parseGrep = (stdout: string, markers: readonly string[], max = 5000): TodoHit[] => {
+  const out: TodoHit[] = []
+  for (const row of stdout.split('\n')) {
+    if (out.length >= max) break
+    const m = row.match(/^(.+?):(\d+):(.*)$/)
+    if (m === null) continue
+    const marker = markerIn(m[3] ?? '', markers)
+    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(m[3] ?? '') })
   }
 
   return out
 }
 
-// Binary and generated files never hold a marker worth showing.
+// Binary and generated files never hold a marker worth showing; the todo.md is the checklist, not a source of hits.
 export const isSkipped = (path: string) =>
-  /\.(png|jpe?g|gif|webp|ico|icns|bmp|tiff?|pdf|zip|gz|tgz|bz2|xz|7z|rar|jar|woff2?|ttf|otf|eot|mp[34]|mov|avi|wav|ogg|webm|exe|dll|so|dylib|bin|class|o|a|wasm|pyc|sqlite|db|lockb)$/i.test(path) ||
-  /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock)$/.test(path)
+  /\.(png|jpe?g|gif|webp|ico|icns|bmp|tiff?|pdf|zip|gz|tgz|bz2|xz|7z|rar|jar|woff2?|ttf|otf|eot|mp[34]|mov|avi|wav|ogg|webm|exe|dll|so|dylib|bin|class|o|a|wasm|pyc|sqlite|db|lockb|map|min\.js|min\.css)$/i.test(path) ||
+  /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock)$/.test(path) ||
+  /^todo\.md$/i.test(path)
 
 export const joinPath = (dir: string, rel: string) => (rel.startsWith('/') ? rel : `${dir.replace(/\/+$/, '')}/${rel}`)
 
@@ -50,19 +70,15 @@ export const relativeTo = (root: string, path: string) => {
   return base !== '' && path.startsWith(`${base}/`) ? path.slice(base.length + 1) : path
 }
 
-export type FileCounts = { path: string; counts: number[] }
+export const HITS_KEPT = 60
 
-// Totals per marker (zeros dropped) and the files with any marker, most markers first.
-export const summarize = (found: readonly FileCounts[], markers: readonly string[], root: string): TodoSummary => {
-  const withAny = found
-    .map(f => ({ path: f.path, total: f.counts.reduce((a, b) => a + b, 0), counts: f.counts }))
-    .filter(f => f.total > 0)
-    .sort((a, b) => b.total - a.total || a.path.localeCompare(b.path))
-  const counts = markers
-    .map((marker, i) => ({ marker, n: withAny.reduce((sum, f) => sum + (f.counts[i] ?? 0), 0) }))
-    .filter(c => c.n > 0)
+// Totals per marker (zeros dropped), the number of files and the first hits in file and line order.
+export const summarize = (all: readonly TodoHit[], markers: readonly string[], root: string): TodoSummary => {
+  const hits = all.filter(h => !isSkipped(h.file)).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
+  const counts = markers.map(marker => ({ marker, n: hits.filter(h => h.marker === marker).length })).filter(c => c.n > 0)
+  const files = [...new Set(hits.map(h => h.file))]
 
-  return { counts, files: withAny.slice(0, 20).map(f => relativeTo(root, f.path)), fileCount: withAny.length }
+  return { counts, files: files.slice(0, 20), fileCount: files.length, hits: hits.slice(0, HITS_KEPT), root }
 }
 
 // "3 TODO · 1 FIXME in 2 files"

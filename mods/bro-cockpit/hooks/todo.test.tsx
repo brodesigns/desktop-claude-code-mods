@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { changedPaths, countMarkers, parseMarkers } from './markerscan'
+import { hitsIn, isSkipped, parseGrep, parseMarkers, summarize } from './markerscan'
 import { append, entriesFrom, findName, parse, remove, restore } from './todomd'
 
 const ROOT = '/p'
@@ -50,6 +50,13 @@ function world(on: On, files: Record<string, string>, status: string | null, ope
     }
     if (status === null) return ran(128, '')
     if (e.argv.includes('rev-parse')) return ran(0, '/p\n')
+    // `git grep -n -w -e M ...`: every line of every file with one of the words, as `path:line:text`.
+    if (e.argv.includes('grep')) {
+      const words = e.argv.flatMap((a: string, i: number) => (e.argv[i - 1] === '-e' ? [a] : []))
+      const re = new RegExp(`\\b(${words.join('|')})\\b`)
+      const rows = Object.entries(files).flatMap(([path, text]) => text.split('\n').flatMap((l, i) => (re.test(l) ? [`${path.replace('/p/', '')}:${i + 1}:${l}`] : [])))
+      return rows.length === 0 ? ran(1, '') : ran(0, rows.join('\n') + '\n')
+    }
     if (e.argv.includes('remote')) return ran(1, '')
     // The cockpit's own git line asks `status --porcelain -b`; the marker scan asks `status --porcelain=v1 -z`.
     return e.argv.includes('-b') ? ran(0, '## main\n') : ran(0, status)
@@ -234,20 +241,48 @@ test('no todo.md: the tab says so', async ($, on) => {
   await ui.unmount()
 })
 
-test('changed files with markers: counts per marker, each file opens on a click', async ($, on) => {
+test('a marker in the middle of any file shows with file, line and text; a click opens the file', async ($, on) => {
   const opened: string[][] = []
-  world(on, { '/p/a.ts': '// TODO one\n// TODO two\n// FIXME three\n', '/p/b.md': 'TODO\n', '/p/c.ts': 'clean\n' }, ' M a.ts\u0000?? b.md\u0000?? c.ts\u0000 D gone.ts\u0000', opened)
+  const files = {
+    '/p/a.ts': 'const a = 1\n// some code\n// TODO one\n// FIXME three\n',
+    '/p/deep/d.ts': Array.from({ length: 40 }, (_, i) => (i === 29 ? '  // HACK: deep in an untouched file' : `line ${i}`)).join('\n'),
+    '/p/c.ts': 'clean\n',
+    '/p/todo.md': '- [ ] a task about a TODO\n',
+  }
+  world(on, files, '', opened)
   await begin($ as never, on)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /3 TODO · 1 FIXME in 2 files/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /1 TODO · 1 FIXME · 1 HACK in 2 files/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Button', text: /a\.ts:3\s+\/\/ TODO one/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Button', text: /deep\/d\.ts:30\s+\/\/ HACK: deep in an untouched file/ })) != null).toBe(true)
   expect((await ui.find({ type: 'Button', text: /c\.ts/ })) == null).toBe(true)
-  await ui.press({ key: 'file-a.ts' })
-  expect(opened).toEqual([['open', '/p/a.ts']])
+  expect((await ui.find({ type: 'Button', text: /todo\.md/ })) == null).toBe(true)
+  await ui.press({ key: 'file-deep/d.ts:30' })
+  expect(opened).toEqual([['open', '/p/deep/d.ts']])
   await ui.unmount()
 })
 
-test('a file Claude writes counts at once, also outside git', async ($, on) => {
+test('a long list shows the first hits and says how many more', async ($, on) => {
+  const many = Array.from({ length: 40 }, (_, i) => `// TODO number ${i + 1}`).join('\n')
+  world(on, { '/p/many.ts': many }, '')
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Button', text: /many\.ts:15\b/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Button', text: /many\.ts:16\b/ })) == null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /and 25 more in the project/ })) != null).toBe(true)
+  await ui.unmount()
+})
+
+test('no marker anywhere: no "In code" section', async ($, on) => {
+  world(on, { '/p/a.ts': 'const todo = 1 // TODOS and TODOx, xFIXME\n' }, '')
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /In code/ })) == null).toBe(true)
+  await ui.unmount()
+})
+
+test('without git a file Claude writes counts at once', async ($, on) => {
   const files: Record<string, string> = {}
   world(on, files, null)
   await begin($ as never, on)
@@ -257,6 +292,7 @@ test('a file Claude writes counts at once, also outside git', async ($, on) => {
 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /1 XXX in 1 file/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Button', text: /new\.ts:1\s+\/\/ XXX later/ })) != null).toBe(true)
   await ui.unmount()
 })
 
@@ -273,10 +309,25 @@ test('the poll picks up a new marker after 30 seconds; custom markers come from 
   await ui.unmount()
 })
 
-test('helpers: whole words, renames, config words', () => {
-  expect(countMarkers('TODO todo TODOS xTODO TODO: (TODO)', ['TODO'])).toEqual([3])
-  expect(countMarkers('TODO\u0000', ['TODO'])).toEqual([0])
-  expect(changedPaths('R  new.ts\u0000old.ts\u0000 M b.ts\u0000D  gone.ts\u0000')).toEqual(['new.ts', 'b.ts'])
+test('helpers: whole words, first marker names the hit, binary and generated files, config words', () => {
+  const words = ['TODO', 'FIXME']
+  expect(hitsIn('a.ts', 'TODO todo TODOS xTODO\nok\n  // FIXME then TODO', words)).toEqual([
+    { file: 'a.ts', line: 1, marker: 'TODO', text: 'TODO todo TODOS xTODO' },
+    { file: 'a.ts', line: 3, marker: 'FIXME', text: '// FIXME then TODO' },
+  ])
+  expect(hitsIn('a.bin', 'TODO\u0000', words)).toEqual([])
+  expect(parseGrep('src/a.ts:12:  // TODO fix\nnot a hit line\nb.md:3:FIXME: x\n', words)).toEqual([
+    { file: 'src/a.ts', line: 12, marker: 'TODO', text: '// TODO fix' },
+    { file: 'b.md', line: 3, marker: 'FIXME', text: 'FIXME: x' },
+  ])
+  expect(isSkipped('pnpm-lock.yaml')).toBe(true)
+  expect(isSkipped('logo.png')).toBe(true)
+  expect(isSkipped('TODO.md')).toBe(true)
+  expect(isSkipped('src/todo.md')).toBe(false)
+  const sum = summarize([{ file: 'b.ts', line: 2, marker: 'FIXME', text: 'x' }, { file: 'a.ts', line: 9, marker: 'TODO', text: 'y' }, { file: 'a.ts', line: 1, marker: 'TODO', text: 'z' }, { file: 'pnpm-lock.yaml', line: 1, marker: 'TODO', text: 'q' }], words, '/p')
+  expect(sum.counts).toEqual([{ marker: 'TODO', n: 2 }, { marker: 'FIXME', n: 1 }])
+  expect(sum.hits.map(h => `${h.file}:${h.line}`)).toEqual(['a.ts:1', 'a.ts:9', 'b.ts:2'])
+  expect(sum.fileCount).toBe(2)
   expect(parseMarkers('')).toEqual(['TODO', 'FIXME', 'HACK', 'XXX'])
   expect(parseMarkers(' NOTE ,x y,NOTE')).toEqual(['NOTE'])
 })

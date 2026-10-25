@@ -12,7 +12,3 @@ export async function openTarget($: EngineInterface, target: string) {
   }
   $.ui.toast(`Could not open ${target}`)
 }
-
-export async function openInProject($: EngineInterface, relative: string) {
-  await openTarget($, `${await $.session.root()}/${relative}`)
-}

@@ -6,8 +6,11 @@ export type TodoNote = { text: string; tone: 'success' | 'warning' | 'error' }
 export type TodoUndo = { path: string; index: number; lines: string[]; text: string }
 // One marker (TODO, FIXME ...) and how often it occurs in the scanned files.
 export type TodoCount = { marker: string; n: number }
-// Code markers: counts per marker (only above 0) and the files holding any (relative, most first).
-export type TodoSummary = { counts: TodoCount[]; files: string[]; fileCount: number }
+// One marker in a file: where it stands and the line it stands in (shortened).
+export type TodoHit = { file: string; line: number; marker: string; text: string }
+// Code markers in the whole project: counts per marker (only above 0), how many files hold any, the first hits
+// in file and line order, and the folder the files are relative to.
+export type TodoSummary = { counts: TodoCount[]; files: string[]; fileCount: number; hits: TodoHit[]; root: string }
 
 export type GitInfo = {
   project: string

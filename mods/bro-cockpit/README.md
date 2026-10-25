@@ -2,7 +2,7 @@
 
 A session dashboard for Claude Code in the Claude desktop app: one pane with tabs next to the chat and a git band above the prompt. Costs no model tokens.
 
-- **Tabs:** Overview (tiles and an attention card for anything red), Files (read and changed), Subagents (list, tree view, animated worker), Tool calls, Instruments (context window, 5 hour rate limit, cost), Errors (failed tool calls), Todo (the open items of the project's `todo.md` as a checklist and the TODO, FIXME, HACK and XXX markers of changed files), Project (info, scripts, ideas and change requests).
+- **Tabs:** Overview (tiles and an attention card for anything red), Files (read and changed), Subagents (list, tree view, animated worker), Tool calls, Instruments (context window, 5 hour rate limit, cost), Errors (failed tool calls), Todo (the open items of the project's `todo.md` as a checklist and the TODO, FIXME, HACK and XXX markers found anywhere in the project), Project (info, scripts, ideas and change requests).
 - **Git band:** project, branch, uncommitted changes, commits to push or pull. Runs `git status` in your project every 15 seconds and nothing else.
 - **Ideas and change requests** are saved per project and survive across sessions (plugin store on your machine).
 - **Commands:** `/cockpit [home|files|agents|calls|meter|errors|project]`, `/idea <text>`, `/change <text>` (change request).
@@ -25,5 +25,5 @@ Limits: the pane only shows what happens in the current session. Commands and er
 ## Todo tab
 
 - **todo.md:** the file in the project root (any capitalisation) as a checklist. `- [ ] task`, `* [ ] task`, `1. [ ] task` and plain bullets count, headings become sections, indented entries stay indented, entries marked `[x]` are not shown. A click ticks an entry: its line and the indented lines below it are removed from the file (read again right before the write; a moved line is found by its text, a vanished one is left alone). `↶ undo` puts the last one back for the session.
-- **In code:** TODO, FIXME, HACK and XXX in the files `git status` reports plus the files Claude wrote in this session, checked every 30 seconds and right after Claude writes a file. A click on a file opens it in your editor.
+- **In code:** TODO, FIXME, HACK and XXX anywhere in the project, also in the middle of a file: one `git grep` over every tracked file and every untracked one that is not ignored (a few milliseconds), checked every 30 seconds and right after Claude writes a file. Each hit shows `file:line` and the line; a click opens the file in your editor. `todo.md` itself, binary files, lock files and minified files are left out. Without git, the files Claude wrote in this session are scanned instead.
 - **Settings:** `show_todo`, `markers` (comma separated) and `sessionFiles`. `/cockpit todo` jumps to the tab.
