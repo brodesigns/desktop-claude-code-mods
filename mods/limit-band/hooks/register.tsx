@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 
 import type { LimitRow, LimitSnap } from '../types'
-import { clockAt, pct, span, toneOf } from './time'
+import { pct, span, toneOf } from './time'
 
 const snap = atom({ plugin: 'limit-band', key: 'snap' } as const, null)
 
@@ -51,19 +51,17 @@ async function start($: EngineInterface) {
   timer = $.clock.every(TICK_MS, () => void refresh($))
 }
 
-// Opens a folder, file or address with the system's opener. Argument vector, no shell: the target is never parsed.
-async function openTarget($: EngineInterface, args: string[]) {
+// Opens an address with the system's opener. Argument vector, no shell: the address is never parsed.
+async function openUrl($: EngineInterface, url: string) {
   for (const program of ['open', 'xdg-open']) {
     try {
-      // xdg-open has no reveal flag: it opens the folder of the file instead.
-      const argv = program === 'open' ? [program, ...args] : [program, args[args.length - 1] ?? '']
-      const res = await $.process.run(argv, { timeoutMs: 5_000 })
+      const res = await $.process.run([program, url], { timeoutMs: 5_000 })
       if (res.exitCode === 0) return
     } catch {
       // This opener is not there; the next one tries.
     }
   }
-  $.ui.toast(`Could not open ${args[args.length - 1] ?? ''}`)
+  void $.ui.toast(`Could not open ${url}`)
 }
 
 const USAGE_URL = 'https://claude.ai/settings/usage'
@@ -102,7 +100,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey || s === null || worst === undefined) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
-    const narrow = e.props.bodyColumns < 56
+    const narrow = e.props.bodyColumns < 44
     const rows = narrow ? [worst] : s.rows
 
     // The bands of the plugins beneath stay drawn, under this one.
@@ -110,20 +108,20 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box overflow="hidden" paddingX="sm" gap="md">
-          <Text color="#39639E" size="caption">▌</Text>
+        <Box overflow="hidden" paddingX="sm" gap="sm">
+          <Box flexShrink={0}><Text color="#39639E" size="caption">▌</Text></Box>
           {rows.map(r => {
             const t = toneOf(r.percent)
             const left = r.resetsAt - s.at
 
             return (
               <Box key={`lim-${r.kind}`} flexShrink={1} minWidth={0} overflow="hidden">
-                <Button plain key={`lim-btn-${r.kind}`} onPress={() => void openTarget($, [USAGE_URL])}>
-                  <Text size="caption" color={t === 'neutral' ? undefined : t} weight="semibold">
+                <Button plain key={`lim-btn-${r.kind}`} onPress={() => void openUrl($, USAGE_URL)}>
+                  <Text size="caption" color={t === 'neutral' ? undefined : t} weight="semibold" wrap="truncate">
                     {MARK[t]} {LABEL[r.kind] ?? r.kind} {pct(r.percent)}
                   </Text>
                   {r.resetsAt > 0 ? (
-                    <Text size="caption" dimColor>
+                    <Text size="caption" dimColor wrap="truncate">
                       {` · ↻ ${span(left)}`}
                     </Text>
                   ) : (

@@ -9,4 +9,3 @@ export const columns = (e: RenderInput): number => {
 }
 
 export const isNarrow = (e: RenderInput) => columns(e) < 44
-export const isWide = (e: RenderInput) => columns(e) >= 68

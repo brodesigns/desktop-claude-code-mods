@@ -2,6 +2,7 @@ import type { Column, KanbanCard } from '../types'
 
 export const TEXT_MAX = 300
 export const DAY_MS = 86_400_000
+export const DONE_MAX = 200
 
 export const COLUMNS: readonly { id: Column; label: string; mark: string }[] = [
   { id: 'open', label: 'Open', mark: '○' },
@@ -39,4 +40,13 @@ export const splitDone = (done: KanbanCard[], now: number, days: number) => {
   const edge = now - days * DAY_MS
 
   return { recent: done.filter(c => c.movedAt >= edge), old: done.filter(c => c.movedAt < edge) }
+}
+
+// Keeps at most `max` Done cards: the ones that arrived there longest ago go first.
+export const capDone = (cards: KanbanCard[], max = DONE_MAX): KanbanCard[] => {
+  const done = cards.filter(c => c.col === 'done')
+  if (done.length <= max) return cards
+  const drop = new Set(done.sort((a, b) => a.movedAt - b.movedAt || a.id - b.id).slice(0, done.length - max))
+
+  return cards.filter(c => !drop.has(c))
 }

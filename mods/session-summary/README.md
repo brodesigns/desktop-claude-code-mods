@@ -6,11 +6,12 @@ A pane with a very short running summary of what happened in this session, writt
 - **Switch:** `● auto` / `○ auto off` in the pane's head turns the automatic updates on and off, and the choice is kept across sessions. Off, nothing is sent to the model; turns are still noted, so `↻ update` (or switching on again) catches up. Without a choice, the setting `auto` applies.
 - **Updates:** after every answer of the main thread (when auto is on). The model does not see the transcript. It gets the summary so far plus a digest of the new turn (what you asked, which files were written, the first 480 characters of the answer), about 300 input tokens and at most 220 output tokens per update, with low effort. Subagent turns are ignored.
 - **Secrets:** everything is redacted for known key patterns before it is sent or kept. It goes through the session's own client and credentials, like any model call of the session.
-- **Failure:** a failed call (rate limit, overload, timeout after 30 s) keeps the digests and says so in the pane; `↻ update` tries again, the next turn does too.
+- **Prompt hygiene:** each digest goes to the model inside `<turn>…</turn>` and the summary so far inside `<summary>…</summary>`, with `<` and `>` removed from the text. The system prompt says that text inside the tags is data.
+- **Failure:** a failed call (rate limit, overload, timeout after 30 s) keeps the digests and says so in the pane; `↻ update` tries again, the next turn does too. A permanent error (`invalid_request`, `authentication_failed`, `model_not_found`, for example a wrong `model` setting) pauses the automatic calls for the session: the note says "Check the model setting; auto paused for this session." `↻ update`, or switching auto off and on, lifts the pause.
 
 ## Commands
 
-- `/summary` opens the pane. It also opens by itself at the start of a session.
+- `/summary` opens the pane. It also opens by itself at the start of a session, but only while auto is on.
 
 ## Settings
 

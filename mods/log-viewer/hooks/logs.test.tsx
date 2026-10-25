@@ -77,17 +77,23 @@ const ANSWERS: Record<string, Answer> = {
   'npm test': { isError: true, result: 'Exit code 1\nFAIL src/a.test.ts\nError: expected 1 to be 2', text: 'Exit code 1\nFAIL src/a.test.ts\nError: expected 1 to be 2' },
 }
 
-test('the pane lists Bash calls, newest open at the bottom, on terminal and desktop', async ($, on) => {
-  const clock = mock.clock(on)
+const answerBash = (on: Parameters<typeof mock.clock>[0], clock: ReturnType<typeof mock.clock>) =>
   on('tool.call', async (_, e) => {
     await clock.advance(1500)
     return ANSWERS[(e as { command?: string }).command ?? ''] ?? { result: { stdout: '', stderr: '', interrupted: false } }
   })
+
+test('the pane lists Bash calls, header counts, errors-only toggle, on terminal and desktop', async ($, on) => {
+  const clock = mock.clock(on)
+  answerBash(on, clock)
   await $.tool.call({ tool: 'Bash', command: 'npm run build' })
   await $.tool.call({ tool: 'Bash', command: 'npm test' })
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: 'Logs' })) != null).toBe(true)
+    // Header: entries and failed.
+    expect((await ui.find({ type: 'Text', text: '2 · ✗ 1' })) != null).toBe(true)
     const buttons = (await ui.findAll({ type: 'Button' })).map(b => b.text)
     // Oldest first: the newest is the last entry.
     expect(buttons.findIndex(t => /npm run build/.test(t ?? ''))).toBeLessThan(buttons.findIndex(t => /npm test/.test(t ?? '')))
@@ -105,23 +111,102 @@ test('the pane lists Bash calls, newest open at the bottom, on terminal and desk
     expect((await ui.find({ type: 'Text', text: 'warning: chunk is large' }))?.props.color).toBe('warning')
     expect((await ui.find({ type: 'Text', text: 'Error: expected 1 to be 2' })) == null).toBe(true)
 
-    // Only errors.
-    await ui.press({ key: 'f-errors' })
+    // Errors only, and back.
+    expect((await ui.find({ type: 'Text', text: '✗ errors only' })) != null).toBe(true)
+    await ui.press({ key: 'filter' })
     expect((await ui.find({ type: 'Button', text: /npm run build/ })) == null).toBe(true)
     expect((await ui.find({ type: 'Button', text: /npm test/ })) != null).toBe(true)
-    await ui.press({ key: 'f-all' })
-
-    // Text filter: matches the output, not only the command.
-    await ui.input({ key: 'q', text: 'chunk', kind: 'change' })
-    expect((await ui.find({ type: 'Button', text: /npm test/ })) == null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: 'all' })) != null).toBe(true)
+    await ui.press({ key: 'filter' })
     expect((await ui.find({ type: 'Button', text: /npm run build/ })) != null).toBe(true)
-    await ui.press({ key: 'q-clear' })
-    expect((await ui.find({ type: 'Button', text: /npm test/ })) != null).toBe(true)
     // Back to the start: the newest open again.
     await ui.press({ key: (await ui.find({ type: 'Button', text: /npm test/ }))?.key ?? 'missing' })
     expect((await ui.find({ type: 'Text', text: 'Error: expected 1 to be 2' })) != null).toBe(true)
     await ui.unmount()
   }
+})
+
+test('the search field shows from 8 entries on and filters by output', async ($, on) => {
+  const clock = mock.clock(on)
+  answerBash(on, clock)
+  await $.tool.call({ tool: 'Bash', command: 'npm run build' })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+  for (let i = 0; i < 5; i++) await $.tool.call({ tool: 'Bash', command: `echo ${i}` })
+
+  const few = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await few.find({ type: 'Input' })) == null).toBe(true)
+  await few.unmount()
+
+  await $.tool.call({ tool: 'Bash', command: 'echo last' })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Input' })) != null).toBe(true)
+    // Matches the output, not only the command.
+    await ui.input({ key: 'q', text: 'chunk', kind: 'change' })
+    expect((await ui.find({ type: 'Button', text: /npm test/ })) == null).toBe(true)
+    expect((await ui.find({ type: 'Button', text: /npm run build/ })) != null).toBe(true)
+    await ui.press({ key: 'q-clear' })
+    expect((await ui.find({ type: 'Button', text: /npm test/ })) != null).toBe(true)
+    await ui.unmount()
+  }
+})
+
+test('copy output copies the redacted lines; the command goes into the prompt box or onto the clipboard', async ($, on) => {
+  const clock = mock.clock(on)
+  on('tool.call', async (_, e) => {
+    await clock.advance(10)
+    return (e as { command?: string }).command === 'npm test' ? ANSWERS['npm test']! : { result: { stdout: `built\nTOKEN=${TOKEN}\n`, stderr: '', interrupted: false } }
+  })
+  const copied: string[] = []
+  const filled: string[] = []
+  let boxOpen = true
+  on('ui.copy', (_, e) => {
+    copied.push((e as { text: string }).text)
+    return { value: { isCopied: true as const } }
+  })
+  on('prompt.fill', (_, e) => {
+    if (!boxOpen) return { isFilled: false }
+    filled.push((e as { text: string }).text)
+    return { isFilled: true }
+  })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+  await $.tool.call({ tool: 'Bash', command: 'make all' })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    copied.length = 0
+    filled.length = 0
+    boxOpen = true
+    const ui = await $.ui.mount({ ...PANE, surface })
+    // The newest (`make all`) is open.
+    await ui.press({ key: 'copy-out' })
+    expect(copied).toEqual(['built\nTOKEN=[secret removed]'])
+    expect(copied.join('')).not.toContain(TOKEN)
+    expect((await ui.find({ type: 'Text', text: /Output is on the clipboard/ })) != null).toBe(true)
+
+    await ui.press({ key: 'use-cmd' })
+    expect(filled).toEqual(['make all'])
+    expect((await ui.find({ type: 'Text', text: /Command is in the prompt box/ })) != null).toBe(true)
+
+    boxOpen = false
+    await ui.press({ key: 'use-cmd' })
+    expect(copied[copied.length - 1]).toBe('make all')
+    expect((await ui.find({ type: 'Text', text: /The command is on the clipboard/ })) != null).toBe(true)
+    await ui.unmount()
+  }
+})
+
+test('a Bash tool that throws still finishes its entry, and the error goes on', async ($, on) => {
+  mock.clock(on)
+  on('tool.call', () => {
+    throw new Error('boom')
+  })
+  await $.tool.call({ tool: 'Bash', command: 'sleep 9' }).catch(() => undefined)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: '⚙' })) == null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: 'Tool failed' })) != null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: '1 · ✗ 1' })) != null).toBe(true)
+  await ui.unmount()
 })
 
 test('an empty pane says so on terminal and desktop, narrow and wide', async ($, on) => {
@@ -157,7 +242,10 @@ test('/logs opens the pane; the scroll button is there and never breaks it', asy
     return { value: { isPlaced: true as const } }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('tool.call', () => ({ result: { stdout: 'x', stderr: '', interrupted: false } }))
+  mock.clock(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
 
   const res = await $.command.run({ command: 'logs', args: '', origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 80 } })
   expect(res.text).toBe('Logs opened.')

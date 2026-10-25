@@ -37,7 +37,7 @@ export async function start($: EngineInterface) {
 
 export async function countTool($: EngineInterface, e: ToolCallInput) {
   if (e.agentId !== undefined) {
-    await update($, agents, patch(e.agentId, a => ({ ...a, tools: a.tools + 1, last: e.tool })))
+    await update($, agents, patch(e.agentId, a => ({ ...a, tools: a.tools + 1, last: e.tool, isDone: false, isFailed: false, isAborted: false, endedAt: 0 })))
   }
 }
 
@@ -62,7 +62,7 @@ export const register: Register = on => {
     await recordTurn($, e)
     if (e.agentId !== undefined) {
       const t = await $.clock.now()
-      await update($, agents, patch(e.agentId, a => ({ ...a, isDone: true, isFailed: e.reason !== 'answer', endedAt: t })))
+      await update($, agents, patch(e.agentId, a => ({ ...a, isDone: true, isFailed: e.reason === 'error' || e.reason === 'refusal', isAborted: e.isAborted, endedAt: t })))
       await refreshCounts($)
     }
 
@@ -117,14 +117,15 @@ export async function view($: EngineInterface, e: RenderInput) {
   const sitting = await worker($, e, narrow ? 38 : 52, 'sit')
   const tired = await worker($, e, narrow ? 38 : 52, 'fail')
 
-  const toneOf = (a: AgentRow): Tone => (a.isDone ? (a.isFailed ? 'error' : 'success') : 'warning')
-  const wordOf = (a: AgentRow) => (a.isDone ? (a.isFailed ? 'error' : 'done') : 'running')
+  const toneOf = (a: AgentRow): Tone => (a.isDone ? (a.isFailed ? 'error' : a.isAborted ? 'warning' : 'success') : 'warning')
+  const wordOf = (a: AgentRow) => (a.isDone ? (a.isFailed ? 'error' : a.isAborted ? 'stopped' : 'done') : 'running')
+  const isCalm = (a: AgentRow) => a.isDone && !a.isFailed && a.isAborted !== true
   const age = (a: AgentRow) => secs((a.isDone ? a.endedAt : Math.max(t, a.startedAt)) - a.startedAt)
 
   // Tree: one card per agent, children indented under their parent.
   const branch = (a: AgentRow, depth: number): JSX.Element => (
     <Box key={`node-${a.id}`} flexDirection="column" gap={SPACE.tight} marginLeft={Math.min(depth, 4) * 2}>
-      {card(ui, `nc-${a.id}`, a.isDone && !a.isFailed ? 'neutral' : toneOf(a), [
+      {card(ui, `nc-${a.id}`, isCalm(a) ? 'neutral' : toneOf(a), [
         cardHead(ui, 'h', [<Text key="tree" dimColor>└ </Text>, statusDot(ui, 'd', toneOf(a)), a.type], <Text dimColor tabular size={TYPE.label}>{wordOf(a)} · {age(a)} · {a.tools} tools</Text>),
         line(ui, 'desc', a.description, { size: 'caption' }),
       ])}
@@ -154,7 +155,7 @@ export async function view($: EngineInterface, e: RenderInput) {
       )}
       {mode === 'list' && more(ui, 'agents-more', hidden.size, 'more done (older)')}
       {mode === 'list' && shown.map(a => (
-        <Box key={`agent-${a.id}`} borderStyle="round" overflow="hidden" borderColor={a.isDone && !a.isFailed ? 'subtle' : TONE[toneOf(a)]} paddingX="sm" paddingY="xs" gap={SPACE.base} alignItems="center">
+        <Box key={`agent-${a.id}`} borderStyle="round" overflow="hidden" borderColor={isCalm(a) ? 'subtle' : TONE[toneOf(a)]} paddingX="sm" paddingY="xs" gap={SPACE.base} alignItems="center">
           <Box flexShrink={0}>{a.isDone ? (a.isFailed ? tired : sitting) : liveLeft-- > 0 ? mascot : mascotStill}</Box>
           <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
             {cardHead(ui, 'h', [statusDot(ui, 'd', toneOf(a)), `${a.type}${a.isBackground ? ' · background' : ''}`], <Text dimColor tabular size={TYPE.label}>{age(a)}</Text>)}

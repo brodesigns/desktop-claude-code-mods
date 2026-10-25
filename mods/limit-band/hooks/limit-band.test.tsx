@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { clockAt, span } from './time'
+import { span } from './time'
 
 const SURFACES = ['terminal', 'desktop'] as const
 // Local time, so the test reads the same in every time zone.
@@ -42,15 +42,13 @@ const engineBand = (on: On) => {
 type Found = { findAll: (q: { type: string; text: RegExp }) => Promise<{ props: Record<string, unknown> }[]> }
 const colorOf = async (ui: Found, text: RegExp) => (await ui.findAll({ type: 'Text', text })).map(f => f.props.color).find(c => c !== undefined)
 
-test('span and clock time read in English', () => {
+test('span reads in English', () => {
   expect(span(30_000)).toBe('less than 1 min')
   expect(span(12 * MIN + 59_000)).toBe('12 min')
   expect(span(83 * MIN + 30_000)).toBe('1 h 23 min')
   expect(span(2 * 60 * MIN)).toBe('2 h')
   expect(span(24 * 60 * MIN + 5 * MIN)).toBe('1 day')
   expect(span(51 * 60 * MIN)).toBe('2 days 3 h')
-  expect(clockAt(NOW + 83 * MIN, NOW)).toBe('11:23')
-  expect(clockAt(new Date(2026, 9, 24, 9, 5).getTime(), NOW)).toBe('Sat 09:05')
 })
 
 test('over the threshold the band counts down to the reset, on the timer', async ($, on) => {
@@ -191,4 +189,31 @@ test('a 5-hour window without a reset time has no countdown to show', async ($, 
   const ui = await $.ui.mount({ ...(band() as object), surface: 'desktop' } as never)
   expect((await ui.find({ type: 'Button', text: /5h/ })) == null).toBe(true)
   await ui.unmount()
+})
+
+test('narrow cut-off is 44 columns; texts truncate; a click opens the usage page', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  engineBand(on)
+  usage(on as never, () => [
+    { kind: 'five_hour', percentUsed: 60, resetsAt: iso(NOW + 60 * MIN) },
+    { kind: 'seven_day', percentUsed: 70, resetsAt: iso(NOW + 50 * 60 * MIN) },
+  ])
+  const run: string[][] = []
+  on('process.run', (_, e) => {
+    run.push((e as unknown as { argv: string[] }).argv)
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  const mid = await $.ui.mount({ ...(band(50) as object), surface: 'desktop' } as never)
+  expect((await mid.find({ type: 'Button', text: /5h/ })) != null).toBe(true)
+  expect((await mid.find({ type: 'Button', text: /7d/ })) != null).toBe(true)
+  await mid.unmount()
+
+  const narrow = await $.ui.mount({ ...(band(43) as object), surface: 'desktop' } as never)
+  expect((await narrow.find({ type: 'Button', text: /5h/ })) == null).toBe(true)
+  expect((await narrow.find({ type: 'Text', text: /^◔ 7d/ }))?.props.wrap).toBe('truncate')
+  await narrow.press({ key: 'lim-btn-seven_day' })
+  expect(run).toEqual([['open', 'https://claude.ai/settings/usage']])
+  await narrow.unmount()
 })

@@ -6,8 +6,8 @@ declare module 'claude-code' {
   interface PluginState {
     'session-summary': {
       summary: Summary | null
-      // Digests of finished turns the summary does not cover yet.
-      waiting: string[]
+      // Digests of finished turns the summary does not cover yet; `n` counts the turns so a call removes only the ones it covered.
+      waiting: { n: number; text: string }[]
       // The latest prompt and the files written since it: the next turn's digest is built from them.
       lastAsk: string
       lastFiles: string[]

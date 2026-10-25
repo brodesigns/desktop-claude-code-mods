@@ -7,7 +7,9 @@ Band above the prompt with the countdown to the project's deadline. The deadline
 ```
 
 - **Colour by urgency:** 3 days or less is a warning, 1 day or less and overdue is an error (`⚠`). Overdue reads `overdue by 2 h`.
+- **One row:** long text is cut with an ellipsis, the band stays one row (below 44 columns the date is dropped). A click shows a toast with the text, the countdown, the full date with year and `/deadline off to clear`.
 - **No deadline:** the band stays empty.
+- **Other sessions:** the stored deadline is read again every minute, so a `/deadline` set or cleared in another session of the same project shows up within a minute.
 - **Project** is the folder of the main repository (also from a worktree), without git the session's project folder. Found with `git rev-parse --git-common-dir` at session start, after the session's folder changes, and on each `/deadline`.
 
 ## Commands

@@ -31,6 +31,8 @@ export type AgentRow = {
   isBackground: boolean
   isDone: boolean
   isFailed: boolean
+  // Ended by an interruption: shown as stopped, not as an error.
+  isAborted?: boolean
   tools: number
   last: string
   startedAt: number

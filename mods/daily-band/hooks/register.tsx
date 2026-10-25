@@ -16,6 +16,13 @@ let timer: { cancel: () => void } | null = null
 // One count at a time (cost seen, own entry): a turn and a measure may land together.
 let queue: Promise<unknown> = Promise.resolve()
 let author = { cwd: '', email: '' }
+// Today's commit count, kept between refreshes: counting spawns git, so it runs on the minute tick, at start and
+// after a Bash call that may have committed, never on every turn or measure.
+let lastCommits: number | null = null
+// One refresh at a time; a request while one runs makes it go round once more.
+let running: Promise<void> | null = null
+let isDue = false
+let isCommitsDue = false
 
 // Writes only when the value differs (JSON compare). True when it wrote.
 async function setIfChanged<T>(get: () => Promise<T>, set: (value: T) => Promise<unknown>, value: T): Promise<boolean> {
@@ -49,7 +56,7 @@ async function commitsToday($: EngineInterface): Promise<number | null> {
   return Number.isFinite(n) ? n : null
 }
 
-// Sums every session's entry of today, so another session's turns show here within a minute.
+// Sums every session's entry of today, so another session's turns show here within a minute. No process runs here.
 async function recompute($: EngineInterface) {
   try {
     const date = dayKey(await $.clock.now())
@@ -62,7 +69,7 @@ async function recompute($: EngineInterface) {
       totals.usd += one.usd
     }
     totals.usd = Math.round(totals.usd * 10_000) / 10_000
-    if (settings.commits) totals.commits = await commitsToday($)
+    totals.commits = settings.commits ? lastCommits : null
     await setIfChanged(() => read($, today), v => update($, today, () => v), totals)
   } catch {
     // Tried again on the next tick.
@@ -85,6 +92,37 @@ async function addOwn($: EngineInterface, ms: number, turns: number, usd: number
   const key = entryKey(dayKey(await $.clock.now()), await $.session.id())
   const old = asEntry(await $.store.get(key))
   await $.store.set(key, { ms: old.ms + ms, turns: old.turns + turns, usd: old.usd + usd })
+}
+
+async function cycle($: EngineInterface) {
+  try {
+    do {
+      isDue = false
+      if (isCommitsDue) {
+        isCommitsDue = false
+        lastCommits = await commitsToday($)
+      }
+      await recompute($)
+    } while (isDue)
+  } catch {
+    // Tried again on the next tick.
+  } finally {
+    running = null
+  }
+}
+
+// Serialised: overlapping runs could write an older total last. A caller that arrives while one runs waits for it,
+// and the run goes round once more so the caller's change is in. `commits` asks for a fresh git count first.
+function refresh($: EngineInterface, commits: boolean): Promise<void> {
+  if (commits && settings.commits) isCommitsDue = true
+  if (running !== null) {
+    isDue = true
+
+    return running
+  }
+  running = cycle($)
+
+  return running
 }
 
 function enqueue(work: () => Promise<unknown>) {
@@ -113,9 +151,9 @@ async function start($: EngineInterface) {
   } catch {
     // Counting starts with the next turn.
   }
-  await recompute($)
+  await refresh($, true)
   timer?.cancel()
-  timer = $.clock.every(TICK_MS, () => void recompute($))
+  timer = $.clock.every(TICK_MS, () => void refresh($, true))
 }
 
 // A main-loop turn: its wall-clock time, one turn, and the cost it added. Counted once per turn id.
@@ -149,7 +187,7 @@ export const register: Register = (on, options) => {
     const done = await next(e)
     if (e.agentId === undefined) {
       await enqueue(() => countTurn($, e.turnId, e.durationMs))
-      await recompute($)
+      await refresh($, false)
     }
 
     return done
@@ -159,11 +197,19 @@ export const register: Register = (on, options) => {
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('cost')) {
       await enqueue(() => countCost($, e.cost?.usd))
-      await recompute($)
+      await refresh($, false)
     }
 
     return next(e)
   })
+
+  // A commit, merge, rebase or cherry-pick by Claude changes today's count; nothing else needs git.
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const ran = await next(e)
+    if (settings.commits && /\bgit\s+(commit|merge|rebase|cherry-pick)/.test(String(e.command))) await refresh($, true)
+
+    return ran
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const t = await read($, today)
@@ -172,12 +218,13 @@ export const register: Register = (on, options) => {
     if (t.date !== dayKey(await $.clock.now())) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
-    const parts = [
-      duration(t.ms),
-      ...(t.usd > 0 ? [`≈ ${money(t.usd)}`] : []),
-      plural(t.turns, 'Turn', 'Turns'),
-      ...(t.commits !== null && t.commits > 0 ? [plural(t.commits, 'Commit', 'Commits')] : []),
-    ]
+    const isNarrow = e.props.bodyColumns < 44
+    const time = duration(t.ms)
+    const cost = t.usd > 0 ? [`≈ ${money(t.usd)}`] : []
+    const counts = [plural(t.turns, 'turn', 'turns'), ...(t.commits !== null && t.commits > 0 ? [plural(t.commits, 'commit', 'commits')] : [])]
+    // Narrow: time and cost only; the copied summary stays complete.
+    const shown = isNarrow ? [time, ...cost] : [time, ...cost, ...counts]
+    const summary = [time, ...cost, ...counts].join(' · ')
 
     // The bands of the plugins beneath stay drawn, under this one.
     const below = await next(e)
@@ -185,14 +232,16 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box overflow="hidden" paddingX="sm" gap="sm">
-          <Text color="#39639E" size="caption">▌</Text>
-          <Button key="daily" plain onPress={press => {
-            void $.ui.copy({ text: `Today: ${parts.join(' · ')}`, surface: press.surface })
-            void $.ui.toast('Copied today\'s summary')
-          }}>
-            <Text size="caption" weight="semibold">☀ Today </Text>
-            <Text size="caption" dimColor>{parts.join(' · ')}</Text>
-          </Button>
+          <Box flexShrink={0}><Text color="#39639E" size="caption">▌</Text></Box>
+          <Box flexShrink={1} minWidth={0} overflow="hidden">
+            <Button key="daily" plain onPress={press => {
+              void $.ui.copy({ text: `Today: ${summary}`, surface: press.surface })
+              void $.ui.toast('Copied today\'s summary')
+            }}>
+              <Text size="caption" weight="semibold" wrap="truncate">☀ Today </Text>
+              <Text size="caption" dimColor wrap="truncate">{shown.join(' · ')}</Text>
+            </Button>
+          </Box>
         </Box>
         {below}
       </Box>

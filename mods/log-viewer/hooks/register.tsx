@@ -1,18 +1,23 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderInput, ToolCallInput, ToolCallResult } from 'claude-code'
+import type { EngineInterface, Register, RenderInput, RenderSurface, ToolCallInput, ToolCallResult } from 'claude-code'
 
-import type { LogEntry, LogLine } from '../types'
+import type { LogEntry, LogLine, LogNote } from '../types'
+import { redact } from './keys'
 import { columns, isNarrow } from './layout'
 import { cleanCommand, isProblem, keep, MARK, outcome, short, statusWord, tone } from './logs'
+import { ACCENT, actions, emptyState, note, SPACE, TYPE } from './style'
 
 const PANE = 'log-viewer'
 const TITLE = 'Logs'
+// The search field only appears from this many entries on; a short list needs none.
+const SEARCH_FROM = 8
 
 // Change the tag when LogEntry's fields change: a value an earlier version stored is then declined.
 const logs = atom({ plugin: 'log-viewer', key: 'logList' } as const, [], { shape: 'logs-1' })
 const filter = atom({ plugin: 'log-viewer', key: 'logFilter' } as const, 'all')
 const query = atom({ plugin: 'log-viewer', key: 'logQuery' } as const, '')
 const opened = atom({ plugin: 'log-viewer', key: 'logOpen' } as const, '')
+const lastNote = atom({ plugin: 'log-viewer', key: 'logNote' } as const, null)
 
 async function begin($: EngineInterface, e: ToolCallInput & { command: string }): Promise<LogEntry> {
   const entry: LogEntry = {
@@ -38,6 +43,36 @@ async function finish($: EngineInterface, entry: LogEntry, ran: ToolCallResult) 
   await update($, logs, list => keep(list, done))
 }
 
+// A call whose tool threw: the entry must not stay "running".
+async function fail($: EngineInterface, entry: LogEntry) {
+  const ms = Math.max(0, (await $.clock.now()) - entry.startedAt)
+  const done: LogEntry = { ...entry, ms, status: 'error', exitCode: null, note: 'Tool failed', lines: [], cut: 0 }
+  await update($, logs, list => keep(list, done))
+}
+
+// Writes the feedback line only when it differs.
+async function say($: EngineInterface, text: string, tone: LogNote['tone']) {
+  const now = await read($, lastNote)
+  if (now !== null && now.text === text && now.tone === tone) return
+  await update($, lastNote, () => ({ text, tone }))
+}
+
+// Copies the kept (already redacted) output; redacted once more on the way out.
+async function copyOutput($: EngineInterface, x: LogEntry, surface: RenderSurface) {
+  const copied = await $.ui.copy({ text: redact(x.lines.map(l => l.t).join('\n')), surface })
+  if (copied.isCopied) return say($, 'Output is on the clipboard.', 'success')
+  await say($, 'Clipboard unreachable: select and copy the output below.', 'error')
+}
+
+// The command into the prompt box; if the box refuses, onto the clipboard.
+async function useCommand($: EngineInterface, x: LogEntry, surface: RenderSurface) {
+  const box = await $.prompt.fill({ text: x.command })
+  if (box.isFilled) return say($, 'Command is in the prompt box.', 'success')
+  const copied = await $.ui.copy({ text: x.command, surface })
+  if (copied.isCopied) return say($, 'Prompt box unreachable. The command is on the clipboard.', 'warning')
+  await say($, 'Prompt box and clipboard unreachable: select and copy the command above.', 'error')
+}
+
 // The latest open (''), none ('-'), or the one clicked. A click on the open entry closes it.
 async function toggle($: EngineInterface, id: string, newest: string) {
   await update($, opened, now => {
@@ -59,27 +94,31 @@ type Ui = ReturnType<EngineInterface['ui']['resolve']>
 
 const cut = (text: string, room: number) => (text.length > room ? `${text.slice(0, Math.max(1, room - 1))}…` : text)
 
-function output(ui: Ui, x: LogEntry, q: string) {
-  const { Box, Text } = ui
+function output($: EngineInterface, ui: Ui, x: LogEntry, q: string) {
+  const { Box, Button, Text } = ui
   const shown: LogLine[] = q === '' ? x.lines : x.lines.filter(l => l.t.toLowerCase().includes(q))
   const border = x.status === 'error' ? 'error' : x.status === 'running' ? 'subtle' : x.status === 'ok' ? 'subtle' : 'warning'
 
   return (
     <Box key={`out-${x.id}`} flexDirection="column" marginLeft="sm" marginY="xs" paddingX="sm" borderStyle="round" overflow="hidden" borderColor={border}>
-      <Text key="cmd" mono size="caption" wrap="wrap">$ {x.command}</Text>
-      {x.note !== '' && x.status === 'denied' && <Text key="note" color="warning" size="caption" wrap="wrap">{x.note}</Text>}
-      {x.cut > 0 && <Text key="cut" dimColor size="caption">{x.lines.length === 0 ? `${x.cut} lines, no longer kept` : `${x.cut} earlier lines left out`}</Text>}
-      {x.status === 'running' && <Text key="run" dimColor size="caption">running …</Text>}
-      {x.status !== 'running' && x.lines.length === 0 && x.cut === 0 && <Text key="none" dimColor size="caption">(no output)</Text>}
-      {q !== '' && x.lines.length > 0 && <Text key="hits" dimColor size="caption">{shown.length} of {x.lines.length} lines contain "{q}"</Text>}
+      <Text key="cmd" mono size={TYPE.label} wrap="wrap">$ {x.command}</Text>
+      {x.note !== '' && (x.status === 'denied' || x.lines.length === 0) && <Text key="note" color={x.status === 'denied' ? 'warning' : 'error'} size={TYPE.label} wrap="wrap">{x.note}</Text>}
+      {x.cut > 0 && <Text key="cut" dimColor size={TYPE.label}>{x.lines.length === 0 ? `${x.cut} lines, no longer kept` : `${x.cut} earlier lines left out`}</Text>}
+      {x.status === 'running' && <Text key="run" dimColor size={TYPE.label}>running …</Text>}
+      {x.status !== 'running' && x.lines.length === 0 && x.cut === 0 && <Text key="none" dimColor size={TYPE.label}>(no output)</Text>}
+      {q !== '' && x.lines.length > 0 && <Text key="hits" dimColor size={TYPE.label}>{shown.length} of {x.lines.length} lines contain "{q}"</Text>}
       {shown.map((l, i) => {
         const t = tone(l.t)
         return (
-          <Text key={`l${i}`} mono size="caption" wrap="wrap" color={t} dimColor={t === undefined && l.err}>
+          <Text key={`l${i}`} mono size={TYPE.label} wrap="wrap" color={t} dimColor={t === undefined && l.err}>
             {l.t === '' ? ' ' : l.t}
           </Text>
         )
       })}
+      {actions(ui, 'out-act', [
+        ...(x.lines.length > 0 ? [<Button key="copy-out" label="⧉ copy output" variant="secondary" onPress={press => copyOutput($, x, press.surface)} />] : []),
+        <Button key="use-cmd" label="↳ command" variant="secondary" onPress={press => useCommand($, x, press.surface)} />,
+      ])}
     </Box>
   )
 }
@@ -104,7 +143,19 @@ export const register: Register = on => {
     } catch {
       entry = null
     }
-    const ran = await next(e)
+    let ran: ToolCallResult
+    try {
+      ran = await next(e)
+    } catch (err) {
+      if (entry !== null) {
+        try {
+          await fail($, entry)
+        } catch {
+          // Only the pane misses it; the original error goes on.
+        }
+      }
+      throw err
+    }
     if (entry !== null) {
       try {
         await finish($, entry, ran)
@@ -124,6 +175,7 @@ export const register: Register = on => {
     const raw = await read($, query)
     const q = raw.trim().toLowerCase()
     const open = await read($, opened)
+    const told = await read($, lastNote)
     const narrow = isNarrow(e as unknown as RenderInput)
     const width = columns(e as unknown as RenderInput)
 
@@ -140,7 +192,7 @@ export const register: Register = on => {
 
       return (
         <Box key={`e-${x.id}`} flexDirection="column">
-          <Box alignItems="center" gap="xs">
+          <Box alignItems="center" gap={SPACE.tight}>
             <Box width={COL.mark} flexShrink={0}>
               <Text color={m.color} weight="bold">{m.glyph}</Text>
             </Box>
@@ -151,61 +203,62 @@ export const register: Register = on => {
             </Box>
             {!narrow && (
               <Box width={COL.status} flexShrink={0} justifyContent="flex-end">
-                <Text color={x.status === 'ok' ? undefined : m.color} dimColor={x.status === 'ok'} size="caption" wrap="truncate">{statusWord(x)}</Text>
+                <Text color={x.status === 'ok' ? undefined : m.color} dimColor={x.status === 'ok'} size={TYPE.label} wrap="truncate">{statusWord(x)}</Text>
               </Box>
             )}
             <Box width={COL.time} flexShrink={0} justifyContent="flex-end">
-              <Text dimColor tabular size="caption">{x.status === 'running' ? '…' : short(x.ms)}</Text>
+              <Text dimColor tabular size={TYPE.label}>{x.status === 'running' ? '…' : short(x.ms)}</Text>
             </Box>
           </Box>
-          {isOpen && output(ui, x, q)}
+          {isOpen && output($, ui, x, q)}
         </Box>
       )
     }
 
     return (
-      <Box flexDirection="column" gap="sm" padding={narrow ? 'xs' : 'sm'}>
-        <Box justifyContent="space-between" alignItems="center" flexWrap="wrap" gap="xs">
-          <Box gap="xs" flexWrap="wrap">
-            <Button key="f-all" label={`All ${all.length}`} variant={f === 'all' ? 'primary' : 'secondary'} onPress={() => update($, filter, () => 'all')} />
-            <Button key="f-errors" label={`Errors only ${failed}`} variant={f === 'errors' ? 'primary' : 'secondary'} onPress={() => update($, filter, () => 'errors')} />
+      <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
+        <Box justifyContent="space-between" alignItems="center" gap={SPACE.base}>
+          <Box flexShrink={0}>
+            <Text size={TYPE.title} weight="semibold">Logs</Text>
           </Box>
-          <Box gap="xs" flexWrap="wrap">
-            <Button key="end" label="↓ to bottom" variant="secondary" onPress={() => void scrollEnd($)} />
-            <Button key="clear" label="Clear" variant="secondary" onPress={() => update($, logs, () => [])} />
+          <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end" gap={SPACE.base}>
+            <Text dimColor size={TYPE.label} wrap="truncate">{`${all.length} · ✗ ${failed}`}</Text>
+            <Button key="filter" plain onPress={() => update($, filter, now => (now === 'errors' ? 'all' : 'errors'))}>
+              <Text size={TYPE.label} color={ACCENT} weight="semibold">{f === 'errors' ? 'all' : '✗ errors only'}</Text>
+            </Button>
           </Box>
         </Box>
-        {'Input' in ui && (
-          <Box gap="xs" alignItems="center">
-            <Box flexGrow={1} flexShrink={1} minWidth={0}>
-              <ui.Input
-                key="q"
-                label="Search"
-                placeholder="Text in command or output"
-                value={raw}
-                submitLabel="filter"
-                onInput={(v: string) => void update($, query, () => v)}
-                onSubmit={(v: string) => void update($, query, () => v)}
-              />
+        {(all.length >= SEARCH_FROM || raw !== '') &&
+          ('Input' in ui ? (
+            <Box gap={SPACE.tight} alignItems="center">
+              <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                <ui.Input
+                  key="q"
+                  label="Search"
+                  placeholder="Text in command or output"
+                  value={raw}
+                  submitLabel="filter"
+                  onInput={(v: string) => void update($, query, () => v)}
+                  onSubmit={(v: string) => void update($, query, () => v)}
+                />
+              </Box>
+              {raw !== '' && <Button key="q-clear" label="×" variant="secondary" onPress={() => update($, query, () => '')} />}
             </Box>
-            {raw !== '' && <Button key="q-clear" label="×" variant="secondary" onPress={() => update($, query, () => '')} />}
-          </Box>
-        )}
-        {list.length === 0 && (
-          <Box key="empty" borderStyle="round" overflow="hidden" borderColor="subtle" paddingX="sm" paddingY="xs">
-            <Text dimColor size="footnote" wrap="wrap">{all.length === 0 ? '⌘ No Bash calls in this session yet.' : '⌕ Nothing for this filter.'}</Text>
-          </Box>
-        )}
+          ) : (
+            raw !== '' && <Button key="q-clear" label="× clear search" variant="secondary" onPress={() => update($, query, () => '')} />
+          ))}
+        {told !== null && note(ui, 'note', told.text, told.tone)}
+        {list.length === 0 && emptyState(ui, 'empty', all.length === 0 ? '⌘' : '⌕', all.length === 0 ? 'No Bash calls in this session yet.' : 'Nothing for this filter.')}
         {list.length > 0 && (
-          <Box key="list" flexDirection="column" borderStyle="round" overflow="hidden" borderColor="subtle" paddingX="sm" paddingY="xs" gap="xs">
+          <Box key="list" flexDirection="column" gap={SPACE.tight}>
             {list.map(row)}
           </Box>
         )}
-        {all.length > 0 && (
-          <Box key="legend" minWidth={0} overflow="hidden">
-            <Text dimColor size="caption" wrap="wrap">✓ done · ✗ error · ⛨ blocked · ■ interrupted · ◐ background · ▌ subagent · Newest at the bottom, a click opens the output</Text>
-          </Box>
-        )}
+        {all.length > 0 &&
+          actions(ui, 'tools', [
+            <Button key="end" label="↓ to bottom" variant="secondary" onPress={() => void scrollEnd($)} />,
+            <Button key="clear" label="Clear" variant="secondary" onPress={() => update($, logs, () => [])} />,
+          ])}
       </Box>
     )
   })

@@ -2,9 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderInput, ToolCallInput, ToolCallResult } from 'claude-code'
 
 import type { Call } from '../types'
-import { refreshCounts } from './counts'
+import { noteCall, refreshCounts } from './counts'
 import { redact } from './keys'
 import { isNarrow } from './layout'
+import { isFailed } from './status'
 import { card, emptyState, HEX, legend, LIVE_MAX, more, SPACE, tile, tiles, toolbar, TYPE } from './style'
 
 const calls = atom({ plugin: 'bro-cockpit', key: 'callList' } as const, [])
@@ -65,6 +66,17 @@ const lineCount = (v: unknown) => (typeof v === 'string' && v !== '' ? v.split('
 
 const short = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`)
 
+const MAX_CALLS = 150
+
+// Over the cap the oldest call that finished without failing goes first, so failed calls stay in the Errors tab
+// as long as possible; only a list of nothing but failures and running calls loses its oldest entry.
+function trim(list: Call[]): Call[] {
+  if (list.length <= MAX_CALLS) return list
+  const at = list.findIndex(c => c.isDone && !isFailed(c))
+
+  return list.filter((_, i) => i !== (at >= 0 ? at : 0))
+}
+
 export async function begin($: EngineInterface, e: ToolCallInput): Promise<Call> {
   const t = await $.clock.now()
   const input = e as unknown as Record<string, unknown>
@@ -85,7 +97,8 @@ export async function begin($: EngineInterface, e: ToolCallInput): Promise<Call>
     agent: e.agentId !== undefined,
     agentId: e.agentId ?? '',
   }
-  await update($, calls, list => [...list, call].slice(-150))
+  noteCall()
+  await update($, calls, list => trim([...list, call]))
 
   return call
 }

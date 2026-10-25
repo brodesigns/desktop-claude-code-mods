@@ -76,3 +76,66 @@ test('tool calls keep no secret in the state', async ($, on) => {
   expect(kept).not.toContain(ghFake())
   expect(kept).toContain('[secret removed]')
 })
+
+test('a long session keeps counting: the calls tile passes 150 and failed calls stay in the list', async ($, on) => {
+  const { mem } = memory(on as never)
+  let n = 0
+  on('tool.call', () => (++n === 1 ? ({ result: {}, isError: true } as never) : { result: {} }))
+  on('clock.now', () => ({ value: 1 }))
+  on('session.cwd', () => ({ value: '/p' }))
+  on('session.root', () => ({ value: '/p' }))
+  on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+
+  for (let i = 0; i < 170; i++) await $.tool.call({ tool: 'Bash' as const, command: `echo ${i}` })
+  const counts = mem.get('headCounts') as { calls: number; callsFailed: number; errors: number }
+  const list = mem.get('callList') as { isError: boolean }[]
+
+  expect(counts.calls).toBe(170)
+  expect(list.length).toBe(150)
+  // The first call failed and is the oldest, yet it is still there: finished calls without a failure go first.
+  expect(list[0]?.isError).toBe(true)
+  expect(counts.callsFailed).toBe(1)
+  expect(counts.errors).toBe(1)
+})
+
+test('a call whose tool rejects does not stay running', async ($, on) => {
+  const { mem } = memory(on as never)
+  on('tool.call', () => {
+    throw new Error('boom')
+  })
+  on('clock.now', () => ({ value: 1 }))
+  on('session.cwd', () => ({ value: '/p' }))
+  on('session.root', () => ({ value: '/p' }))
+  on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+
+  await $.tool.call({ tool: 'Bash' as const, command: 'ls' }).catch(() => undefined)
+  const list = mem.get('callList') as { isDone: boolean; isError: boolean }[]
+  expect(list.length).toBe(1)
+  expect(list[0]?.isDone).toBe(true)
+  expect(list[0]?.isError).toBe(true)
+})
+
+test('a stopped subagent is not an error, and a new tool call of a finished one makes it run again', async ($, on) => {
+  const { mem } = memory(on as never)
+  on('clock.now', () => ({ value: 1 }))
+  on('tool.call', () => ({ result: {} }))
+  on('turn.complete', (_, e) => ({ text: (e as { answer?: string }).answer ?? '' }))
+  on('session.cwd', () => ({ value: '/p' }))
+  on('session.root', () => ({ value: '/p' }))
+  on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+
+  mem.set('agentList', [{ id: 'a1', type: 'general-purpose', description: 'work', isBackground: true, isDone: false, isFailed: false, tools: 0, last: '', startedAt: 1, endedAt: 0, parent: '' }])
+  const done = (reason: string) =>
+    $.turn.complete({ agentId: 'a1', reason, isAborted: reason === 'aborted', answer: '', durationMs: 1, turnId: 't' } as never)
+  await done('aborted')
+  let row = (mem.get('agentList') as { isDone: boolean; isFailed: boolean; isAborted?: boolean }[])[0]
+  expect([row?.isDone, row?.isFailed, row?.isAborted]).toEqual([true, false, true])
+
+  await $.tool.call({ tool: 'Bash' as const, command: 'ls', agentId: 'a1' } as never)
+  row = (mem.get('agentList') as typeof row[])[0]
+  expect([row?.isDone, row?.isFailed, row?.isAborted]).toEqual([false, false, false])
+
+  await done('error')
+  row = (mem.get('agentList') as typeof row[])[0]
+  expect([row?.isDone, row?.isFailed]).toEqual([true, true])
+})

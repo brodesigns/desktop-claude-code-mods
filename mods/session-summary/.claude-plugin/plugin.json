@@ -1,6 +1,6 @@
 {
   "name": "session-summary",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pane with a very short running summary of what happened in this session, written after each turn by the cheapest model (Haiku) from a small digest, not from the whole transcript",
   "author": { "name": "BroDesigns" },
   "license": "MIT",

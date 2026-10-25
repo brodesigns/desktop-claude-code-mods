@@ -82,26 +82,24 @@ async function start($: EngineInterface) {
   void refresh($)
 }
 
-const COLOR = { error: 'error', warning: 'warning', info: 'suggestion' } as const
-
-// Opens a folder, file or address with the system's opener. Argument vector, no shell: the target is never parsed.
-async function openTarget($: EngineInterface, args: string[]) {
-  for (const program of ['open', 'xdg-open']) {
-    try {
-      // xdg-open has no reveal flag: it opens the folder of the file instead.
-      const argv = program === 'open' ? [program, ...args] : [program, args[args.length - 1] ?? '']
-      const res = await $.process.run(argv, { timeoutMs: 5_000 })
-      if (res.exitCode === 0) return
-    } catch {
-      // This opener is not there; the next one tries.
-    }
-  }
-  $.ui.toast(`Could not open ${args[args.length - 1] ?? ''}`)
-}
-
-// A click shows the file in the file manager (never opens its content).
+// A click shows the file in the file manager (never opens its content). macOS reveals the file itself;
+// Linux has no reveal flag and `xdg-open <file>` would open it in an editor, so it opens the folder.
+// Argument vectors, no shell: the path is never parsed.
 async function reveal($: EngineInterface, file: string) {
-  await openTarget($, ['-R', `${await $.session.root()}/${file}`])
+  const root = (await $.session.root()).replace(/\/+$/, '')
+  try {
+    const res = await $.process.run(['open', '-R', `${root}/${file}`], { timeoutMs: 5_000 })
+    if (res.exitCode === 0) return
+  } catch {
+    // No `open` here; the next opener tries.
+  }
+  try {
+    const res = await $.process.run(['xdg-open', root], { timeoutMs: 5_000 })
+    if (res.exitCode === 0) return
+  } catch {
+    // No opener at all.
+  }
+  void $.ui.toast(`Could not open ${root}`)
 }
 
 export const register: Register = (on, options) => {
@@ -129,20 +127,25 @@ export const register: Register = (on, options) => {
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const isNarrow = e.props.bodyColumns < 44
-    const color = COLOR[env.tone]
-    const title = env.name !== '' ? `◉ ${env.name}` : '◉ Environment not set'
+    const shown = isNarrow ? 1 : 4
+    const more = env.files.length - shown
     const below = await next(e)
 
     return (
       <Box flexDirection="column">
         <Box overflow="hidden" paddingX="sm" gap="sm">
-          <Text color="#39639E" size="caption">▌</Text>
-          <Text size="caption" color={env.tone === 'info' ? undefined : color} weight="semibold">{title}</Text>
-          {env.files.slice(0, isNarrow ? 1 : 4).map(file => (
-            <Button key={`env-${file}`} plain onPress={() => void reveal($, file)}>
-              <Text size="caption" dimColor>{file}</Text>
-            </Button>
-          ))}
+          <Box flexShrink={0}><Text color="#39639E" size="caption">▌</Text></Box>
+          <Box flexShrink={1} minWidth={0} overflow="hidden" gap="sm">
+            {env.name !== ''
+              ? <Text size="caption" color={env.tone === 'info' ? undefined : env.tone} weight="semibold" wrap="truncate">{`◉ ${env.name}`}</Text>
+              : <Text size="caption" dimColor wrap="truncate">◉</Text>}
+            {env.files.slice(0, shown).map(file => (
+              <Button key={`env-${file}`} plain onPress={() => void reveal($, file)}>
+                <Text size="caption" dimColor wrap="truncate">{file}</Text>
+              </Button>
+            ))}
+            {more > 0 ? <Text size="caption" dimColor wrap="truncate">{`+${more}`}</Text> : ''}
+          </Box>
         </Box>
         {below}
       </Box>

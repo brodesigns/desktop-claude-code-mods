@@ -66,11 +66,14 @@ async function load($: EngineInterface, force: boolean): Promise<DeadlineView> {
   return view
 }
 
-// The minute only moves while a deadline is set, so a project without one writes nothing.
+// Every minute: the stored deadline is read again (no process), so a `/deadline` set or cleared in another session
+// of the same project arrives here too; the minute only moves while a deadline is set. Quiet rounds write nothing.
 async function tick($: EngineInterface) {
   try {
     const view = await load($, false)
-    if (view.deadline === null) return
+    const stored = asDeadline(await $.store.get(view.key))
+    await setIfChanged(() => read($, current), v => update($, current, () => v), { ...view, deadline: stored })
+    if (stored === null) return
     const now = Math.floor((await $.clock.now()) / 60_000) * 60_000
     await setIfChanged(() => read($, minute), v => update($, minute, () => v), now)
   } catch {
@@ -160,13 +163,15 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box overflow="hidden" paddingX="sm" gap="sm">
-          <Text color="#39639E" size="caption">▌</Text>
-          <Button key="deadline" plain onPress={() => void $.ui.toast(`${deadline.text} ${distance(deadline.at, now)} · ${dateLabel(deadline.at, deadline.hasTime, now)}`)}>
-            <Text size="caption" color={tone === 'neutral' ? undefined : tone} weight="semibold">
-              {tone === 'error' ? '⚠' : '⏳'} {deadline.text} {distance(deadline.at, now)}
-            </Text>
-            {narrow ? '' : <Text size="caption" dimColor>{` · ${dateLabel(deadline.at, deadline.hasTime, now)}`}</Text>}
-          </Button>
+          <Box flexShrink={0}><Text color="#39639E" size="caption">▌</Text></Box>
+          <Box flexShrink={1} minWidth={0} overflow="hidden">
+            <Button key="deadline" plain onPress={() => void $.ui.toast(`${deadline.text} ${distance(deadline.at, now)} · ${dateLabel(deadline.at, deadline.hasTime, now, true)} · /deadline off to clear`)}>
+              <Text size="caption" color={tone === 'neutral' ? undefined : tone} weight="semibold" wrap="truncate">
+                {tone === 'error' ? '⚠' : '⏳'} {deadline.text} {distance(deadline.at, now)}
+              </Text>
+              {narrow ? '' : <Text size="caption" dimColor wrap="truncate">{` · ${dateLabel(deadline.at, deadline.hasTime, now)}`}</Text>}
+            </Button>
+          </Box>
         </Box>
         {below}
       </Box>

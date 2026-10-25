@@ -21,6 +21,13 @@ const ideas = atom({ plugin: 'bro-cockpit', key: 'ideaList' } as const, [])
 const todoList = atom({ plugin: 'bro-cockpit', key: 'todoList' } as const, null)
 const todoMarkers = atom({ plugin: 'bro-cockpit', key: 'todoMarkers' } as const, null)
 
+// Every call seen this session. The list keeps only the newest ones, so the total is counted here.
+let callTotal = 0
+
+export function noteCall() {
+  callTotal += 1
+}
+
 // Recounts from the lists and writes `headCounts` only when a number moved. The head and the start page
 // read this one atom, so a write to a list (every tool call) redraws them only when a shown number changes.
 export async function refreshCounts($: EngineInterface) {
@@ -33,7 +40,7 @@ export async function refreshCounts($: EngineInterface) {
   const code = await read($, todoMarkers)
   const failed = c.filter(isFailed).length
   const counts: HeadCounts = {
-    calls: c.length,
+    calls: Math.max(callTotal, c.length),
     callsFailed: failed,
     files: f.length,
     filesChanged: f.filter(x => x.writes + x.edits > 0).length,

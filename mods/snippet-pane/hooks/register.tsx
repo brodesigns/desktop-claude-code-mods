@@ -28,6 +28,13 @@ async function ensure($: EngineInterface, force = false): Promise<SnippetLib> {
   return fresh
 }
 
+// Another session may have added or deleted snippets: re-read the store and update the atom only when the list differs.
+async function refresh($: EngineInterface) {
+  const loaded = await ensure($)
+  const list = asList(await $.store.get(loaded.key))
+  if (JSON.stringify(list) !== JSON.stringify(loaded.list)) await update($, lib, cur => (cur === null ? cur : { ...cur, list }))
+}
+
 // Read, change, write: the store first, so another session's snippets are not overwritten. False when the store refused.
 async function mutate($: EngineInterface, change: (list: Snippet[]) => Snippet[]): Promise<boolean> {
   const loaded = await ensure($)
@@ -42,8 +49,12 @@ async function mutate($: EngineInterface, change: (list: Snippet[]) => Snippet[]
   return true
 }
 
+// A note shows for this long, then the pane stops drawing it (it is checked when the pane draws).
+const NOTE_MS = 8000
+
 async function say($: EngineInterface, text: string, tone: SnippetNote['tone']) {
-  await update($, lastNote, () => ({ text, tone }))
+  const at = await $.clock.now()
+  await update($, lastNote, () => ({ text, tone, at }))
 }
 
 const SYNTAX = 'Please write it like this: /snippet <title> and the code from the next line on, or /snippet <title> | <code>.'
@@ -91,13 +102,21 @@ async function copy($: EngineInterface, s: Snippet, surface: RenderSurface) {
 }
 
 async function remove($: EngineInterface, s: Snippet) {
-  const isSaved = await mutate($, list => list.filter(one => one.id !== s.id))
+  const isSaved = await mutate($, list => list.filter(one => !(one.id === s.id && one.at === s.at)))
   await say($, isSaved ? `"${s.title}" deleted.` : 'Not deleted: the plugin store refused.', isSaved ? 'success' : 'error')
 }
 
 async function saveFromPane($: EngineInterface, value: string) {
   const answer = await save($, value)
   await say($, answer.text, answer.tone)
+  // Saved (success or warning): the field closes, so the typed text cannot be saved twice.
+  if (answer.tone !== 'error') await update($, creating, () => false)
+}
+
+// Opens or closes the field; an old note goes away with it.
+async function toggleNew($: EngineInterface) {
+  await update($, creating, v => !v)
+  if ((await read($, lastNote)) !== null) await update($, lastNote, () => null)
 }
 
 export const register: Register = on => {
@@ -109,9 +128,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The project can move (/cd, a worktree): checked after each turn, loaded only when it changed.
+  // The project can move (/cd, a worktree) and other sessions change the list: checked after each turn.
   on('turn.complete', async ($, e, next) => {
-    await ensure($)
+    await refresh($)
 
     return next(e)
   })
@@ -135,6 +154,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   const data = await read($, lib)
   const open = await read($, openIds)
   const told = await read($, lastNote)
+  const now = await $.clock.now()
   const isCreating = await read($, creating)
 
   if (data === null) return emptyState(ui, 'loading', '⌗', 'Loading snippets …')
@@ -181,7 +201,7 @@ export async function view($: EngineInterface, e: RenderInput) {
         </Box>
         <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end" gap={SPACE.base}>
           <Text dimColor size={TYPE.label} wrap="truncate">{`▣ ${data.project} · ${data.list.length}`}</Text>
-          <Button key="new" plain onPress={() => update($, creating, v => !v)}>
+          <Button key="new" plain onPress={() => toggleNew($)}>
             <Text size={TYPE.label} color="#39639E" weight="semibold">{isCreating ? '✕' : '＋ new'}</Text>
           </Button>
         </Box>
@@ -193,7 +213,7 @@ export async function view($: EngineInterface, e: RenderInput) {
         ) : (
           <Text dimColor size={TYPE.label} wrap="wrap">{'No input field here: use /snippet <title> | <code>.'}</Text>
         ))}
-      {told !== null && note(ui, 'note', told.text, told.tone)}
+      {told !== null && now - told.at < NOTE_MS && note(ui, 'note', told.text, told.tone)}
 
       {data.list.length === 0 && emptyState(ui, 'empty', '⌗', `No snippets for ${data.project} yet. Tap "＋ new" or /snippet <title> | <code>.`)}
       {data.list.map(row)}

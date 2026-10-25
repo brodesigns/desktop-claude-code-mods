@@ -17,10 +17,14 @@ const PANE = {
 type OnLike = Parameters<typeof mock.store>[0]
 
 // The engine beneath the plugin: a root, a clock, a store in memory, and commands that register.
+const time = { now: 1000 }
+
 function world(on: OnLike, entries: Record<string, unknown> = {}) {
   const store: Record<string, unknown> = { ...entries }
+  time.now = 1000
   on('session.root', () => ({ value: ROOT }))
-  on('clock.now', () => ({ value: 1000 }))
+  on('clock.now', () => ({ value: time.now }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -67,6 +71,14 @@ test('a wrong syntax saves nothing and says how', async ($, on) => {
   expect((await run($, 'prompt-save', 'just text without a colon')).text).toContain('Not saved: please write it like this')
   expect((await run($, 'prompt-save', 'empty:   ')).text).toContain('prompt text is missing')
   expect((await run($, 'prompt-save', `${'x'.repeat(41)}: text`)).text).toContain('at most 40')
+  expect(Object.keys(store).length).toBe(0)
+})
+
+test('a name that looks like a secret is not saved', async ($, on) => {
+  const store = world(on)
+  const token = 'gh' + 'p_' + 'c'.repeat(36)
+  const res = await run($, 'prompt-save', `${token}: text`)
+  expect(res.text).toContain('looks like a secret')
   expect(Object.keys(store).length).toBe(0)
 })
 
@@ -172,6 +184,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'scope-project' })
     await ui.input({ key: 'new-input', text: 'fresh: A new prompt' })
     expect((store[PROJECT_KEY] as { name: string }[])[0]?.name).toBe('fresh')
+    // Saved: the field closed, so Enter cannot save it twice.
+    expect((await ui.find({ type: 'Input', text: /name: text/ })) == null).toBe(true)
     await ui.unmount()
   })
 }
@@ -185,5 +199,53 @@ test('without a prompt box and clipboard the pane opens the full text', async ($
   await ui.press({ key: `use-${shortHash(idOf('global', 'long'))}` })
   expect((await ui.find({ type: 'Text', text: /Line two/ })) != null).toBe(true)
   expect((await ui.find({ type: 'Text', text: /Select and copy/ })) != null).toBe(true)
+  await ui.unmount()
+})
+
+test('the note goes away after 8 seconds and when the field is toggled', async ($, on) => {
+  const store = world(on, { 'prompts:global': [prompt('global', 'one', 'Text')] })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const hid = shortHash(idOf('global', 'one'))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: `open-${hid}` })
+  await ui.press({ key: `rm-${hid}` })
+  expect(store['prompts:global']).toEqual([])
+  expect((await ui.find({ type: 'Text', text: /"one" deleted/ })) != null).toBe(true)
+  await ui.unmount()
+
+  time.now = 1000 + 7999
+  const soon = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await soon.find({ type: 'Text', text: /"one" deleted/ })) != null).toBe(true)
+  await soon.unmount()
+
+  time.now = 1000 + 8000
+  const later = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await later.find({ type: 'Text', text: /"one" deleted/ })) == null).toBe(true)
+  await later.unmount()
+
+  time.now = 1000
+  const again = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await again.find({ type: 'Text', text: /"one" deleted/ })) != null).toBe(true)
+  await again.press({ key: 'new' })
+  expect((await again.find({ type: 'Text', text: /"one" deleted/ })) == null).toBe(true)
+  await again.unmount()
+})
+
+test("another session's global prompts show after a turn; a delete needs the same id and creation time", async ($, on) => {
+  const store = world(on, { 'prompts:global': [prompt('global', 'mine', 'A')] })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /theirs/ })) == null).toBe(true)
+
+  store['prompts:global'] = [prompt('global', 'mine', 'A'), prompt('global', 'theirs', 'B', 5)]
+  await $.turn.complete({ answer: 'x', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as never)
+  expect((await ui.find({ type: 'Text', text: /theirs/ })) != null).toBe(true)
+
+  // The same name was re-created elsewhere (same id, other creation time): the stale view must not delete it.
+  const mine = shortHash(idOf('global', 'mine'))
+  await ui.press({ key: `open-${mine}` })
+  store['prompts:global'] = [prompt('global', 'mine', 'Z', 77)]
+  await ui.press({ key: `rm-${mine}` })
+  expect((store['prompts:global'] as { text: string }[]).map(p => p.text)).toEqual(['Z'])
   await ui.unmount()
 })

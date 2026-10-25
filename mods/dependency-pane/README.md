@@ -2,9 +2,11 @@
 
 A pane with the project's dependencies and their declared version ranges. No model tokens.
 
-- **Sources** in the project folder: `package.json` (dependencies, devDependencies, peerDependencies, optionalDependencies), `requirements.txt`, `pyproject.toml` (`[project]`, optional groups, Poetry tables) and `composer.json` (require, require-dev, without `php` and `ext-*`). One group per section, folded and unfolded with a click, packages sorted by name.
-- **Check outdated:** the button (only with a `package.json`) runs `npm outdated --json` and shows the current, wanted and latest version per package. Red `✗` is a major version behind (below 1.0 also a minor version), yellow `●` a minor version, `○` only a patch. In the group, the latest version stands next to the package.
-- **Reload** reads the files again.
+- **Sources** in the project folder: `package.json` (dependencies, devDependencies, peerDependencies, optionalDependencies), `requirements.txt`, `pyproject.toml` (`[project]`, optional groups, Poetry tables) and `composer.json` (require, require-dev, without `php` and `ext-*`).
+- **Pane:** header with the title, the package count and `↻ check` (only with a `package.json`). Every group is one folded line (`▸ package.json · devDependencies  24  ● 3`: count, outdated count). A click unfolds it to one row per package with its declared range.
+- **Check outdated:** `↻ check` runs `npm outdated --json`. One status line shows the result, e.g. `● 5 outdated (2 major) · checked 3 min ago`. Rows of outdated packages carry a badge with the latest version: `✗` major behind (below 1.0 also a minor), `●` minor, `○` patch.
+- **Copy:** `⧉` on an outdated row copies `npm i <name>@latest`. The mod never runs `npm install`.
+- **Project change:** the files are loaded at session start and by `/deps`. When the project root changed, the old check result is dropped. If nothing is loaded, the pane offers `↻ reload`.
 - **Commands:** `/deps` reads the files and opens the pane.
 
 Installation: `claude plugin install dependency-pane@desktop-claude-code-mods`, details in `../../README.md`.

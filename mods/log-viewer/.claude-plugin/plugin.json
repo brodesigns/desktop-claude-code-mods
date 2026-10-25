@@ -1,7 +1,7 @@
 {
   "name": "log-viewer",
-  "version": "0.1.0",
-  "description": "Pane with the output of this session's latest Bash calls: command, exit status, duration, output with highlighted errors and warnings, filter and search",
+  "version": "0.1.1",
+  "description": "Pane with the output of this session's latest Bash calls: command, exit status, duration, output with highlighted errors and warnings, errors-only toggle, search, copy output and command into the prompt box",
   "author": { "name": "BroDesigns" },
   "license": "MIT",
   "types": "./types/index.d.ts"

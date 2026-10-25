@@ -43,6 +43,16 @@ Every band is one borderless, small row (`paddingX="sm"`), so seven bands cost s
 
 Git band (`hooks/git.tsx`): `▣ Project ⎇ branch ✓ All committed` or `● N changes (M staged)`, `↑ N to push`, `↓ N to pull`. Narrow: short words. Every part is its own button: the project opens its folder in the file manager, the branch opens its page on GitHub (only a `github.com` remote, address built by `hooks/git-url.ts`; otherwise the branch name is copied), `↑`/`↓` open the branch's commit list, the state opens the cockpit. Other bands: the env band shows a file in the file manager, the limit band opens the usage page, the branch guard copies `git switch -c `, daily and deadline are display only. Targets are opened with `open` or `xdg-open` as an argument vector, never through a shell.
 
+Band rules (from the review):
+
+- **Structure:** the `▌` marker sits in `<Box flexShrink={0}>`, the main part in `<Box flexShrink={1} minWidth={0} overflow="hidden">`, every `Text` has `wrap="truncate"`, the row has `gap="sm"`. Without it a long text grows the band to two or more rows.
+- **Narrow:** below `bodyColumns < 44` for every band. Drop the least important parts first (daily: turns and commits go, time and cost stay).
+- **Colour:** state colours only for real problems. A permanent state such as "on main" is `warning`, never `error`. A missing optional value (no environment name) shows no warning text.
+- **Clicks:** plain Buttons that copy, show a toast or open something. A toast about a date shows the full date with the year and how to clear it.
+- **Openers:** argument vectors, no shell. macOS reveals a file with `open -R`; Linux opens the containing folder, never the file itself.
+- **Polling:** a poller that spawns a process (git) is serialised with a busy/due loop and runs only at start, on the slow tick and after a relevant tool call, never on every turn. A cached view of the plugin store needs an explicit re-read on the tick, because another session can change the store.
+- **Dates:** "today" and "tomorrow" use calendar arithmetic (`new Date(y, m, d + 1)`), never `now + 24 h`.
+
 Project name: the folder of the main repository (`git rev-parse --git-common-dir`), so a worktree also shows the real project name. Without a git repository, the folder name. The same info appears as one line in the head of the cockpit pane.
 
 ## Overview and tab choice

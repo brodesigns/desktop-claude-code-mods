@@ -16,10 +16,14 @@ const PANE = {
 type OnLike = Parameters<typeof mock.store>[0]
 
 // The engine beneath the plugin: a root, a clock, a store in memory, commands that register.
+const time = { now: 1000 }
+
 function world(on: OnLike, entries: Record<string, unknown> = {}) {
   const store: Record<string, unknown> = { ...entries }
+  time.now = 1000
   on('session.root', () => ({ value: ROOT }))
-  on('clock.now', () => ({ value: 1000 }))
+  on('clock.now', () => ({ value: time.now }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -124,6 +128,57 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'new' })
     await ui.input({ key: 'new-input', text: 'Fresh\nnpm run build' })
     expect((store[KEY] as { title: string; lang: string }[])[1]).toMatchObject({ title: 'Fresh', lang: 'sh' })
+    // Saved: the field closed, so Enter cannot save it twice.
+    expect((await ui.find({ type: 'Input' })) == null).toBe(true)
     await ui.unmount()
   })
 }
+
+test('the note goes away after 8 seconds and when the field is toggled', async ($, on) => {
+  const store = world(on, { [KEY]: [snip(1, 'One', 'sh', 'ls')] })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'open-1' })
+  await ui.press({ key: 'rm-1' })
+  expect(store[KEY]).toEqual([])
+  expect((await ui.find({ type: 'Text', text: /"One" deleted/ })) != null).toBe(true)
+  await ui.unmount()
+
+  time.now = 1000 + 7999
+  const soon = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await soon.find({ type: 'Text', text: /"One" deleted/ })) != null).toBe(true)
+  await soon.unmount()
+
+  time.now = 1000 + 8000
+  const later = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await later.find({ type: 'Text', text: /"One" deleted/ })) == null).toBe(true)
+  await later.unmount()
+
+  // Toggling the field clears a fresh note.
+  time.now = 1000
+  const again = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await again.find({ type: 'Text', text: /"One" deleted/ })) != null).toBe(true)
+  await again.press({ key: 'new' })
+  expect((await again.find({ type: 'Text', text: /"One" deleted/ })) == null).toBe(true)
+  await again.unmount()
+})
+
+test('another session\'s changes show after a turn; a delete never removes a different entry that got the same id', async ($, on) => {
+  const store = world(on, { [KEY]: [snip(1, 'Mine', 'sh', 'ls')] })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /Mine/ })) != null).toBe(true)
+
+  // Another session adds a snippet; this pane does not know yet.
+  store[KEY] = [snip(1, 'Mine', 'sh', 'ls'), { ...snip(2, 'Theirs', 'sh', 'pwd'), at: 5 }]
+  expect((await ui.find({ type: 'Text', text: /Theirs/ })) == null).toBe(true)
+  await $.turn.complete({ answer: 'x', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as never)
+  expect((await ui.find({ type: 'Text', text: /Theirs/ })) != null).toBe(true)
+
+  // Another session deletes id 1 and a new entry takes the id; the stale view deletes nothing of it.
+  await ui.press({ key: 'open-1' })
+  store[KEY] = [{ ...snip(1, 'Other', 'sh', 'date'), at: 99 }]
+  await ui.press({ key: 'rm-1' })
+  expect((store[KEY] as { title: string }[]).map(x => x.title)).toEqual(['Other'])
+  await ui.unmount()
+})

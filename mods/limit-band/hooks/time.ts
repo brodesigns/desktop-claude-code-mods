@@ -17,16 +17,5 @@ export const span = (ms: number): string => {
   return `${mins} min`
 }
 
-const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const two = (n: number) => String(n).padStart(2, '0')
-
-// Local clock time, with the weekday when it is not today: "14:05", "Fri 09:00".
-export const clockAt = (at: number, now: number) => {
-  const d = new Date(at)
-  const time = `${two(d.getHours())}:${two(d.getMinutes())}`
-
-  return new Date(now).toDateString() === d.toDateString() ? time : `${WEEKDAY[d.getDay()] ?? ''} ${time}`
-}
-
 export type Tone = 'neutral' | 'warning' | 'error'
 export const toneOf = (p: number): Tone => (p >= 95 ? 'error' : p >= 80 ? 'warning' : 'neutral')

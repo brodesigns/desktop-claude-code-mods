@@ -7,6 +7,7 @@ import { isNarrow } from './layout'
 import { configure, isTrackingSession, scanMarkers, trackFile } from './markers'
 import { label } from './markerscan'
 import { openTarget } from './open'
+import { PANE } from './pane'
 import { setIfChanged } from './state'
 import { emptyState, legend, more, sectionTitle, SPACE, tile, tiles, toolbar, TYPE } from './style'
 import { append, entriesFrom, findName, parse, remove, restore } from './todomd'
@@ -29,14 +30,37 @@ let markerTimer: { cancel: () => void } | null = null
 let isBusy = false
 let isScanning = false
 let isDue = false
+// What the last read of todo.md looked like (path, change time, size). An unchanged file is not read or parsed
+// again; our own writes clear it, so a quick edit within the same timestamp is still read.
+let seen = ''
+// Tick, add and undo each read, change and write the file: one after another, so none loses another's change.
+let queue: Promise<unknown> = Promise.resolve()
+
+function serial(job: () => Promise<void>): Promise<void> {
+  const run = queue.then(job, job)
+  queue = run.catch(() => undefined)
+
+  return run
+}
+
+// The pane is what shows these numbers; with it closed the polls rest. A failed look counts as open.
+async function isPaneUp($: EngineInterface) {
+  try {
+    return (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
+  } catch {
+    return true
+  }
+}
 
 // The todo.md in the project root, or null. A missing folder or file reads as "none".
-async function locate($: EngineInterface): Promise<{ path: string; name: string } | null> {
+async function locate($: EngineInterface): Promise<{ path: string; name: string; mtimeMs: number; size: number } | null> {
   try {
     const root = await $.session.root()
-    const name = findName((await $.fs.list(root)).filter(f => f.kind === 'file' || (f.kind === 'other' && f.isLink)).map(f => f.name))
+    const files = (await $.fs.list(root)).filter(f => f.kind === 'file' || (f.kind === 'other' && f.isLink))
+    const name = findName(files.map(f => f.name))
+    const entry = files.find(f => f.name === name)
 
-    return name === null ? null : { path: `${root}/${name}`, name }
+    return name === null || entry === undefined ? null : { path: `${root}/${name}`, name, mtimeMs: entry.mtimeMs, size: entry.size }
   } catch {
     return null
   }
@@ -49,11 +73,15 @@ export async function refreshTodo($: EngineInterface) {
   try {
     const found = await locate($)
     let fresh: TodoList | null = null
+    let stamp = ''
     if (found !== null) {
+      stamp = `${found.path}\n${found.mtimeMs}\n${found.size}`
+      if (stamp === seen) return
       const text = await $.fs.read(found.path)
-      fresh = { ...found, items: typeof text === 'string' ? parse(text) : [] }
+      fresh = { path: found.path, name: found.name, items: typeof text === 'string' ? parse(text) : [] }
     }
     await setIfChanged(() => read($, list), v => update($, list, () => v), fresh)
+    seen = stamp
     await refreshCounts($)
   } catch {
     // Unreadable this time; the next look tries again.
@@ -89,15 +117,21 @@ async function say($: EngineInterface, text: string, tone: TodoNote['tone']) {
 
 // Ticking: read the file fresh, cut the entry out, write it back. The file is the truth, not the pane.
 async function tick($: EngineInterface, item: TodoItem) {
+  await serial(() => tickNow($, item))
+}
+
+async function tickNow($: EngineInterface, item: TodoItem) {
   const data = await read($, list)
   if (data === null) return
   try {
     const text = await $.fs.read(data.path)
     const cut = typeof text === 'string' ? remove(text, item) : null
     if (cut === null) {
+      seen = ''
       await refreshTodo($)
       return say($, `"${item.text}" is no longer in ${data.name}.`, 'warning')
     }
+    seen = ''
     await $.fs.write(data.path, cut.text)
     await update($, undoable, () => ({ path: data.path, index: cut.index, lines: cut.lines, text: item.text }))
     await refreshTodo($)
@@ -109,13 +143,18 @@ async function tick($: EngineInterface, item: TodoItem) {
 
 // Adding: the typed lines go to the end of todo.md; without a file, one is created in the project root.
 async function addEntries($: EngineInterface, input: string) {
+  if (entriesFrom(input).length === 0) return
+  await serial(() => addNow($, input))
+}
+
+async function addNow($: EngineInterface, input: string) {
   const entries = entriesFrom(input)
-  if (entries.length === 0) return
   try {
     const found = await locate($)
     const path = found?.path ?? `${await $.session.root()}/todo.md`
     const name = found?.name ?? 'todo.md'
     const before = found === null ? null : await $.fs.read(path)
+    seen = ''
     await $.fs.write(path, append(typeof before === 'string' ? before : null, entries))
     await refreshTodo($)
     await say($, `${entries.length === 1 ? 'Added' : `Added ${entries.length} entries`} to ${name}${found === null ? ' (new file)' : ''}.`, 'success')
@@ -131,10 +170,15 @@ async function refreshNow($: EngineInterface) {
 }
 
 async function undo($: EngineInterface) {
+  await serial(() => undoNow($))
+}
+
+async function undoNow($: EngineInterface) {
   const last = await read($, undoable)
   if (last === null) return
   try {
     const text = await $.fs.read(last.path)
+    seen = ''
     await $.fs.write(last.path, restore(typeof text === 'string' ? text : '', last.index, last.lines))
     await update($, undoable, () => null)
     await refreshTodo($)
@@ -144,25 +188,44 @@ async function undo($: EngineInterface) {
   }
 }
 
-// The cockpit's session.start calls this: settings, a first look, and the two polls (also with the pane closed,
-// because the overview tile and the tab label show the numbers).
+// The cockpit's session.start calls this: settings, a first look, and the two polls (which rest while the pane
+// is closed; opening it with /cockpit looks once at once).
 export async function startTodo($: EngineInterface, markerWords: string, sessionFiles: boolean) {
   configure(markerWords, sessionFiles)
   timer?.cancel()
-  timer = $.clock.every(POLL_MS, () => void refreshTodo($))
+  timer = $.clock.every(POLL_MS, async () => {
+    if (await isPaneUp($)) await refreshTodo($)
+  })
   markerTimer?.cancel()
-  markerTimer = $.clock.every(MARKER_POLL_MS, () => void refreshMarkers($))
+  markerTimer = $.clock.every(MARKER_POLL_MS, async () => {
+    if (await isPaneUp($)) await refreshMarkers($)
+  })
   void refreshTodo($)
   void refreshMarkers($)
 }
 
 // A file Claude wrote counts at once instead of at the next poll. Display only: the call already ran.
+// The caller does not wait for it (`git grep` over the project must not delay the tool result) and it never throws.
 export async function todoTouched($: EngineInterface, e: unknown, ran: { deny?: unknown; isError?: boolean }) {
-  const tool = (e as { tool?: string }).tool ?? ''
-  if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool) || ran.deny !== undefined || ran.isError === true) return
-  if (isTrackingSession()) await trackFile($, e)
-  await refreshTodo($)
-  await refreshMarkers($)
+  try {
+    const tool = (e as { tool?: string }).tool ?? ''
+    if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool) || ran.deny !== undefined || ran.isError === true) return
+    if (isTrackingSession()) await trackFile($, e)
+    if (!(await isPaneUp($))) return
+    await refreshTodo($)
+    await refreshMarkers($)
+  } catch {
+    // Display only; the next poll looks again.
+  }
+}
+
+// `/cockpit` opened the pane: look once now, the polls rested while it was closed.
+export async function todoOpened($: EngineInterface) {
+  try {
+    await refreshNow($)
+  } catch {
+    // The next poll looks again.
+  }
 }
 
 // The tab: the open entries of todo.md, then the markers found in changed code.
@@ -228,8 +291,10 @@ export async function view($: EngineInterface, e: RenderInput) {
         code.hits.slice(0, HITS_SHOWN).map(hit => (
           <Box key={`hit-${hit.file}:${hit.line}`} minWidth={0} overflow="hidden">
             <Button key={`file-${hit.file}:${hit.line}`} plain onPress={() => void openTarget($, `${code.root}/${hit.file}`)}>
-              <Text size={TYPE.label} wrap="truncate">{`▸ ${hit.file}:${hit.line}`}</Text>
-              <Text size={TYPE.label} dimColor>{`  ${hit.text}`}</Text>
+              <Text size={TYPE.label} wrap="truncate">
+                {`▸ ${hit.file}:${hit.line}`}
+                <Text dimColor>{`  ${hit.text}`}</Text>
+              </Text>
             </Button>
           </Box>
         ))}

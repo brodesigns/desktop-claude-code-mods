@@ -19,6 +19,9 @@ export type LogEntry = {
   agent: boolean
 }
 
+// What the last pane action did (copy, fill), shown as one line.
+export type LogNote = { text: string; tone: 'success' | 'warning' | 'error' }
+
 declare module 'claude-code' {
   interface PluginState {
     'log-viewer': {
@@ -28,6 +31,7 @@ declare module 'claude-code' {
       logQuery: string
       // '' the newest entry is open, '-' none, else the id of the open entry
       logOpen: string
+      logNote: LogNote | null
     }
   }
 }

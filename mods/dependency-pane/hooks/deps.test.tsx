@@ -92,21 +92,24 @@ const PANE = {
 
 const COMMAND = { command: 'deps', args: '', origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 80 } }
 
-// A project folder in memory: the files the pane may read.
-const project = (on: On, files: Record<string, string>) => {
-  on('session.root', () => ({ value: '/home/dev/demo' }))
-  on('fs.exists', (_, e) => ({ value: e.path.replace('/home/dev/demo/', '') in files }))
+// A project folder in memory: the files the pane may read. `ref.root` can move to another project.
+const project = (on: On, files: Record<string, string>, ref = { root: '/home/dev/demo' }) => {
+  on('session.root', () => ({ value: ref.root }))
+  on('fs.exists', (_, e) => ({ value: e.path.slice(ref.root.length + 1) in files }))
   on('fs.read', (_, e) => {
-    const text = files[e.path.replace('/home/dev/demo/', '')]
+    const text = files[e.path.slice(ref.root.length + 1)]
     if (text === undefined) throw new Error('ENOENT')
     return { value: text }
   })
   on('ui.open', () => ({ value: { isPlaced: true as const } }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
 }
 
 const ok = (stdout: string, exitCode = 1) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+const has = async (ui: { find: (q: never) => Promise<unknown> }, q: unknown) => (await ui.find(q as never)) != null
 
-test('/deps lists the groups; npm runs only on the button, then shows colours', async ($, on) => {
+test('/deps lists the groups folded; npm runs only on the check, then one status line and badges', async ($, on) => {
   mock.clock(on)
   project(on, { 'package.json': PKG, 'requirements.txt': 'flask==3.0.0\n' })
   const runs: string[] = []
@@ -119,38 +122,114 @@ test('/deps lists the groups; npm runs only on the button, then shows colours', 
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Button', text: /package.json · dependencies/ })) != null).toBe(true)
-    expect((await ui.find({ type: 'Button', text: /requirements.txt/ })) != null).toBe(true)
-    expect((await ui.find({ type: 'Text', text: '^18.2.0' })) != null).toBe(true)
-    expect((await ui.find({ type: 'Text', text: '~/demo · 6 packages' })) != null).toBe(true)
+    expect(await has(ui, { type: 'Text', text: 'Dependencies' })).toBe(true)
+    expect(await has(ui, { type: 'Text', text: '6 packages' })).toBe(true)
+    expect(await has(ui, { type: 'Button', text: /▸ package.json · dependencies/ })).toBe(true)
+    expect(await has(ui, { type: 'Button', text: /▸ requirements.txt/ })).toBe(true)
+    // Folded: no rows in the tree.
+    expect(await has(ui, { type: 'Text', text: '^18.2.0' })).toBe(false)
     await ui.unmount()
   }
-  // Nothing went to npm while only reading.
   expect(runs).toEqual([])
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     await ui.press({ key: 'check' })
-    expect((await ui.find({ type: 'Text', text: 'Outdated 4' })) != null).toBe(true)
-    const react = await ui.find({ type: 'Text', text: /^19\.0\.0$/ })
-    expect(react?.props.color).toBe('error')
-    expect((await ui.find({ type: 'Text', text: /^1\.6\.0$/ }))?.props.color).toBe('warning')
-    // The group row marks the package too.
-    expect((await ui.find({ type: 'Text', text: '✗ 19.0.0' })) != null).toBe(true)
+    // One status line, no card: major counted, age shown.
+    expect(await has(ui, { type: 'Text', text: /4 outdated \(2 major\) · checked just now/ })).toBe(true)
+    expect(await has(ui, { type: 'Text', text: /Outdated 4/ })).toBe(false)
+    // The group line carries the count of outdated packages.
+    expect(await has(ui, { type: 'Text', text: /● 3/ })).toBe(true)
     await ui.unmount()
   }
   expect(runs).toEqual(['npm outdated --json', 'npm outdated --json'])
 })
 
-test('a group folds shut and open again', async ($, on) => {
+test('a group unfolds and folds again; rows carry the badge and the range', async ($, on) => {
+  mock.clock(on)
   project(on, { 'package.json': PKG })
+  on('process.run', () => ok(OUTDATED))
   await $.command.run(COMMAND)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  const head = await ui.find({ type: 'Button', text: /devDependencies/ })
-  await ui.press({ key: head?.key ?? 'missing' })
-  expect((await ui.find({ type: 'Text', text: 'vitest' })) == null).toBe(true)
-  await ui.press({ key: head?.key ?? 'missing' })
-  expect((await ui.find({ type: 'Text', text: 'vitest' })) != null).toBe(true)
+  await ui.press({ key: 'check' })
+  expect(await has(ui, { type: 'Text', text: 'vitest' })).toBe(false)
+  await ui.press({ key: 'h-package.json:devDependencies' })
+  expect(await has(ui, { type: 'Text', text: 'vitest' })).toBe(true)
+  expect(await has(ui, { type: 'Text', text: '^1.0.0' })).toBe(true)
+  expect((await ui.find({ type: 'Text', text: '● 1.6.0' }))?.props.color).toBe('warning')
+  await ui.press({ key: 'h-package.json:devDependencies' })
+  expect(await has(ui, { type: 'Text', text: 'vitest' })).toBe(false)
+  await ui.press({ key: 'h-package.json:dependencies' })
+  expect((await ui.find({ type: 'Text', text: '✗ 19.0.0' }))?.props.color).toBe('error')
+  await ui.unmount()
+})
+
+test('the copy action puts "npm i <name>@latest" on the clipboard and never runs npm install', async ($, on) => {
+  mock.clock(on)
+  project(on, { 'package.json': PKG })
+  const runs: string[] = []
+  on('process.run', (_, e) => {
+    runs.push(e.argv.join(' '))
+    return ok(OUTDATED)
+  })
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true as const } }
+  })
+  await $.command.run(COMMAND)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'check' })
+  await ui.press({ key: 'h-package.json:dependencies' })
+  // Only outdated rows have the action.
+  expect(await has(ui, { type: 'Button', key: 'cp-package.json:dependencies-react' })).toBe(true)
+  await ui.press({ key: 'cp-package.json:dependencies-react' })
+  expect(copied).toEqual(['npm i react@latest'])
+  expect(await has(ui, { type: 'Text', text: /Copied: npm i react@latest/ })).toBe(true)
+  expect(runs).toEqual(['npm outdated --json'])
+  await ui.unmount()
+})
+
+test('a root change drops the old check result', async ($, on) => {
+  mock.clock(on)
+  const ref = { root: '/home/dev/demo' }
+  project(on, { 'package.json': PKG }, ref)
+  on('process.run', () => ok(OUTDATED))
+  await $.command.run(COMMAND)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'check' })
+  expect(await has(ui, { type: 'Text', text: /4 outdated/ })).toBe(true)
+  await ui.unmount()
+
+  // /cd into another project with the same package names.
+  ref.root = '/home/dev/other'
+  await $.command.run(COMMAND)
+  const other = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await has(other, { type: 'Text', text: /outdated/ })).toBe(false)
+  expect(await has(other, { type: 'Button', key: 'check' })).toBe(true)
+  await other.press({ key: 'h-package.json:dependencies' })
+  expect(await has(other, { type: 'Text', text: /● 1\.3\.1|✗ 19/ })).toBe(false)
+  await other.unmount()
+})
+
+test('the project is loaded at session start; a failing load does not break the start', async ($, on) => {
+  project(on, { 'package.json': PKG })
+  await $.session.start({ cwd: '/home/dev/demo', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await has(ui, { type: 'Text', text: '5 packages' })).toBe(true)
+  await ui.unmount()
+})
+
+test('a failing load at session start leaves the "not loaded" state with a reload button', async ($, on) => {
+  on('session.root', () => {
+    throw new Error('no root')
+  })
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/home/dev/demo', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await has(ui, { type: 'Text', text: /Not loaded yet/ })).toBe(true)
+  expect(await has(ui, { type: 'Button', key: 'reload' })).toBe(true)
   await ui.unmount()
 })
 
@@ -165,8 +244,8 @@ test('without npm, or on a timeout, the pane shows the error and stays usable', 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     await ui.press({ key: 'check' })
-    expect((await ui.find({ type: 'Text', text: /npm not found/ })) != null).toBe(true)
-    expect((await ui.find({ type: 'Button', text: 'Check outdated' })) != null).toBe(true)
+    expect(await has(ui, { type: 'Text', text: /npm not found/ })).toBe(true)
+    expect(await has(ui, { type: 'Button', key: 'check' })).toBe(true)
     await ui.unmount()
   }
 })
@@ -178,18 +257,18 @@ test('non-JSON from npm is an error, not a crash', async ($, on) => {
   await $.command.run(COMMAND)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.press({ key: 'check' })
-  expect((await ui.find({ type: 'Text', text: /npm returned no JSON/ })) != null).toBe(true)
+  expect(await has(ui, { type: 'Text', text: /npm returned no JSON/ })).toBe(true)
   await ui.unmount()
 })
 
-test('no manifest: an empty state and no check button, narrow and wide', async ($, on) => {
+test('no manifest: an empty state and no check action, narrow and wide', async ($, on) => {
   project(on, {})
   await $.command.run(COMMAND)
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const bodyColumns of [30, 90]) {
       const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface })
-      expect((await ui.find({ type: 'Text', text: /No package.json/ })) != null).toBe(true)
-      expect((await ui.find({ type: 'Button', text: 'Check outdated' })) == null).toBe(true)
+      expect(await has(ui, { type: 'Text', text: /No package.json/ })).toBe(true)
+      expect(await has(ui, { type: 'Button', key: 'check' })).toBe(false)
       await ui.unmount()
     }
   }
@@ -199,15 +278,17 @@ test('a broken package.json is named, the other files still show', async ($, on)
   project(on, { 'package.json': '{ "dependencies": ', 'composer.json': JSON.stringify({ require: { 'monolog/monolog': '^3.0' } }) })
   await $.command.run(COMMAND)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /package.json: / })) != null).toBe(true)
-  expect((await ui.find({ type: 'Text', text: 'monolog/monolog' })) != null).toBe(true)
+  expect(await has(ui, { type: 'Text', text: /package.json: / })).toBe(true)
+  await ui.press({ key: 'h-composer.json:require' })
+  expect(await has(ui, { type: 'Text', text: 'monolog/monolog' })).toBe(true)
   await ui.unmount()
 })
 
-test('before /deps the pane says it has not loaded yet', async ($, on) => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Text', text: /Not loaded yet/ })) != null).toBe(true)
-    await ui.unmount()
-  }
+test('before anything is loaded the pane says so and reload fills it', async ($, on) => {
+  project(on, { 'package.json': PKG })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await has(ui, { type: 'Text', text: /Not loaded yet/ })).toBe(true)
+  await ui.press({ key: 'reload' })
+  expect(await has(ui, { type: 'Text', text: '5 packages' })).toBe(true)
+  await ui.unmount()
 })

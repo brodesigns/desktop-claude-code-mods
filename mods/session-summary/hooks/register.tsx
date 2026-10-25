@@ -26,8 +26,19 @@ let isAuto = true
 // One update at a time; a turn that ends while one runs makes it go round once more.
 let isRunning = false
 let isDue = false
+// A permanent API error (wrong model, no access): no automatic calls until the person presses `update` or switches auto off and on.
+let isPaused = false
+// Numbers the digests, so a call removes exactly the ones it covered even when the list was trimmed meanwhile.
+let turnNo = 0
+
+const PERMANENT = ['invalid_request', 'authentication_failed', 'model_not_found']
 
 const baseName = (path: string) => path.split('/').pop() ?? path
+
+// Writes the note only when it is not there already (no redraw for nothing).
+async function clearNote($: EngineInterface) {
+  if ((await read($, told)) !== null) await update($, told, () => null)
+}
 
 // One call to the cheap model: the summary so far plus the digests of the turns it does not know yet.
 // Nothing leaves the session's own client and credentials; text is redacted before it is sent or kept.
@@ -37,24 +48,34 @@ async function summarize($: EngineInterface) {
     return
   }
   isRunning = true
+  let isMarked = false
   try {
     do {
       isDue = false
       const digests = await read($, waiting)
       if (digests.length === 0) break
-      await update($, isBusy, () => true)
+      if (!isMarked) {
+        await update($, isBusy, () => true)
+        isMarked = true
+      }
+      const lastSentN = digests[digests.length - 1]?.n ?? 0
       const before = await read($, summary)
       const reply = await $.model.complete({
         model,
         system: SYSTEM,
-        prompt: buildPrompt(before?.text ?? '', digests),
+        prompt: buildPrompt(before?.text ?? '', digests.map(d => d.text)),
         maxTokens: 220,
         effort: 'low',
         timeoutMs: 30_000,
       })
       if (!reply.isAnswered) {
         const why = reply.reason === 'api-error' ? `API error${reply.status === null ? '' : ` ${reply.status}`}` : reply.reason
-        await update($, told, () => ({ text: `Not updated: ${why}. Press "update now" to try again.`, tone: 'warning' as const }))
+        if (reply.reason === 'api-error' && PERMANENT.includes(reply.error)) {
+          isPaused = true
+          await update($, told, () => ({ text: `Not updated: ${why} (${reply.error}). Check the model setting; auto paused for this session.`, tone: 'warning' as const }))
+        } else {
+          await update($, told, () => ({ text: `Not updated: ${why}. Press "update now" to try again.`, tone: 'warning' as const }))
+        }
         break
       }
       const text = parseSummary(redact(reply.text))
@@ -64,15 +85,15 @@ async function summarize($: EngineInterface) {
       }
       const spent = reply.usage.input_tokens + reply.usage.output_tokens
       await update($, summary, cur => ({ text, turns: (cur?.turns ?? 0) + digests.length, tokens: (cur?.tokens ?? 0) + spent }))
-      // Only the digests this call covered are done; ones that arrived meanwhile stay.
-      await update($, waiting, list => list.slice(digests.length))
-      await update($, told, () => null)
+      // Only the digests this call covered are done; ones that arrived meanwhile stay, even if the list was trimmed.
+      await update($, waiting, list => list.filter(d => d.n > lastSentN))
+      await clearNote($)
     } while (isDue)
   } catch {
     await update($, told, () => ({ text: 'Not updated: the model call failed. Press "update now" to try again.', tone: 'warning' as const }))
   } finally {
     isRunning = false
-    await update($, isBusy, () => false)
+    if (isMarked) await update($, isBusy, () => false)
   }
 }
 
@@ -83,6 +104,7 @@ async function isAutomatic($: EngineInterface): Promise<boolean> {
 
 async function toggleAuto($: EngineInterface) {
   const next = !(await isAutomatic($))
+  isPaused = false
   await update($, autoOn, () => next)
   try {
     await $.store.set(STORE_KEY, next)
@@ -98,10 +120,12 @@ async function recordTurn($: EngineInterface, answer: string) {
   const ask = await read($, lastAsk)
   const files = await read($, lastFiles)
   const digest = digestTurn(ask, files, redact(answer))
-  await update($, waiting, list => [...list, digest].slice(-WAITING_MAX))
+  turnNo += 1
+  const n = turnNo
+  await update($, waiting, list => [...list, { n, text: digest }].slice(-WAITING_MAX))
   await update($, lastAsk, () => '')
   await update($, lastFiles, () => [])
-  if (await isAutomatic($)) void summarize($)
+  if (!isPaused && (await isAutomatic($))) void summarize($)
 }
 
 export const register: Register = (on, options) => {
@@ -117,7 +141,8 @@ export const register: Register = (on, options) => {
     } catch {
       // No saved choice: the setting applies.
     }
-    void $.ui.open({ id: PANE, title: 'Summary' })
+    // Opens by itself only while auto is on; `/summary` opens it any time.
+    if (await isAutomatic($)) void $.ui.open({ id: PANE, title: 'Summary' })
 
     return next(e)
   })
@@ -158,7 +183,8 @@ export const register: Register = (on, options) => {
 }
 
 async function pressUpdate($: EngineInterface) {
-  await update($, told, () => null)
+  isPaused = false
+  await clearNote($)
   await summarize($)
 }
 

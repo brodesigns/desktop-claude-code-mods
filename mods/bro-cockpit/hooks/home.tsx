@@ -40,7 +40,7 @@ export async function view($: EngineInterface, e: RenderInput, go: Go, shown: (t
   ].filter(x => shown(x.id))
   const attention = entries.filter(x => x.alert)
   // One column on a narrow pane, two in the middle, three on a wide one.
-  const width = narrow ? '100%' : wide ? '31%' : '47%'
+  const width = narrow ? '100%' : wide ? '32%' : '48.5%'
   // Calm values stay in the text colour; only warnings and real problems get theirs.
   const valueColor = (x: Entry) => (x.alert ? 'error' : x.tone === 'warning' ? 'warning' : 'text')
 
@@ -68,7 +68,7 @@ export async function view($: EngineInterface, e: RenderInput, go: Go, shown: (t
           <Box
             key={`h-${x.id}`}
             flexDirection="column"
-            flexGrow={1}
+            flexGrow={0}
             width={width}
             minWidth={narrow ? 0 : 18}
             borderStyle="round"

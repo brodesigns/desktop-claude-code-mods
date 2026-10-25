@@ -92,13 +92,43 @@ test('a survey takes the band', async ($, on) => {
   }
 })
 
-test('files without a name, and an interpolation, say so', async ($, on) => {
-  const clock = world(on, { '.env': 'NODE_ENV=${MODE}\nPORT=3000\n' })
+test('files without a name show only the file buttons, no warning', async ($, on) => {
+  const clock = world(on, { '.env': 'NODE_ENV=${MODE}\nPORT=3000\n', '.env.local': 'PORT=1\n' })
   await begin($, clock)
 
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /◉/ }))?.text).toBe('◉ Environment not set')
-  await ui.unmount()
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect((await ui.find({ type: 'Text', text: /^◉$/ })) != null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /not set/ })) == null).toBe(true)
+    expect((await ui.find({ type: 'Button', text: /^\.env\.local$/ })) != null).toBe(true)
+    expect((await ui.find({ type: 'Button', text: /^\.env$/ })) != null).toBe(true)
+    await ui.unmount()
+  }
+})
+
+test('more files than shown add a dim +N, a narrow band shows one file', async ($, on) => {
+  const clock = world(on, {
+    '.env.local': 'NODE_ENV=development\n',
+    '.env': 'A=1\n',
+    '.env.development': 'A=1\n',
+    '.env.production': 'A=1\n',
+    '.env.test': 'A=1\n',
+    '.env.staging': 'A=1\n',
+  })
+  await begin($, clock)
+
+  const wide = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const plus = await wide.find({ type: 'Text', text: /^\+\d+$/ })
+  expect(plus?.text).toBe('+2')
+  expect(plus?.props.dimColor).toBe(true)
+  expect((await wide.find({ type: 'Button', text: /^\.env\.staging$/ })) == null).toBe(true)
+  await wide.unmount()
+
+  const narrow = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 40 }, surface: 'terminal' })
+  expect((await narrow.find({ type: 'Text', text: /^\+5$/ })) != null).toBe(true)
+  expect((await narrow.find({ type: 'Button', text: /^\.env$/ })) == null).toBe(true)
+  expect((await narrow.find({ type: 'Text', text: /◉ development/ }))?.props.wrap).toBe('truncate')
+  await narrow.unmount()
 })
 
 test('a .env file Claude writes shows at once', async ($, on) => {
@@ -157,5 +187,20 @@ test('a click on a file shows it in the file manager, never opens its content', 
   const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
   await ui.press({ key: 'env-.env.local' })
   expect(run).toEqual([['open', '-R', '/p/.env.local']])
+  await ui.unmount()
+})
+
+test('without `open` (Linux) a click opens the folder, never the file', async ($, on) => {
+  const clock = world(on, { '.env.local': 'NODE_ENV=development\n' })
+  const run: string[][] = []
+  on('process.run', (_, e) => {
+    const argv = (e as { argv: string[] }).argv
+    run.push(argv)
+    return { value: { exitCode: argv[0] === 'open' ? 127 : 0, stdout: '', stderr: '' } }
+  })
+  await begin($, clock)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  await ui.press({ key: 'env-.env.local' })
+  expect(run).toEqual([['open', '-R', '/p/.env.local'], ['xdg-open', '/p']])
   await ui.unmount()
 })

@@ -1,15 +1,15 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderInput } from 'claude-code'
+import type { EngineInterface, Register, RenderInput, ToolCallResult } from 'claude-code'
 
 import { countTool, register as agents, start as startAgents, view as agentsView, worker } from './agents'
 import { EMPTY_COUNTS, refreshCounts } from './counts'
 import { view as filesView, track } from './files'
 import { view as errorsView } from './errors'
 import { register as meter, start as startMeter, view as meterView } from './meter'
-import { line as gitLine, register as git, start as startGit } from './git'
+import { gitTouched, line as gitLine, register as git, start as startGit } from './git'
 import { register as projectCommands, start as startProject, view as projectView } from './project'
 import { view as homeView } from './home'
-import { startTodo, todoTouched, view as todoView } from './todo'
+import { startTodo, todoOpened, todoTouched, view as todoView } from './todo'
 import { begin, finish, view as toolcallsView } from './toolcalls'
 import { isNarrow } from './layout'
 import { PANE } from './pane'
@@ -74,11 +74,15 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'cockpit' }, async ($, e) => {
-    const want = String(e.args ?? '').trim()
-    if (shown(want)) await update($, tab, () => want)
+    const want = String(e.args ?? '').trim().toLowerCase()
+    const isKnown = want === '' || shown(want)
+    if (want !== '' && isKnown) await update($, tab, () => want)
     await $.ui.open({ id: PANE, title: 'Cockpit' })
+    // The todo polls rest while the pane is closed: look once now.
+    void todoOpened($)
+    if (isKnown) return { text: 'Cockpit pane opened.' }
 
-    return { text: 'Cockpit pane opened.' }
+    return { text: `Unknown tab "${want}". Try: ${tabs.map(t => t.id).join(', ')}` }
   })
 
   on('tool.call', async ($, e, next) => {
@@ -86,10 +90,20 @@ export const register: Register = (on, options) => {
     await countTool($, e)
     // The call count moves now, not when a long call ends.
     await refreshCounts($)
-    const ran = await next(e)
+    let ran: ToolCallResult
+    try {
+      ran = await next(e)
+    } catch (err) {
+      // The row must not stay "running" when the call itself failed.
+      await finish($, call, { isError: true } as unknown as ToolCallResult)
+      await refreshCounts($)
+      throw err
+    }
     await finish($, call, ran)
     await track($, e, ran)
-    await todoTouched($, e, ran)
+    // Display only, nobody waits for these: a `git grep` or `git status` must not delay the tool result.
+    void todoTouched($, e, ran)
+    gitTouched($, e.tool)
     await refreshCounts($)
 
     return ran

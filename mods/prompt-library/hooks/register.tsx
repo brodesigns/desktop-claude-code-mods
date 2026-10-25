@@ -33,6 +33,16 @@ async function ensure($: EngineInterface, force = false): Promise<PromptLib> {
   return fresh
 }
 
+// Another session may have added or deleted prompts (the global list is shared by all projects): re-read the store and update the atom only when a list differs.
+async function refresh($: EngineInterface) {
+  const loaded = await ensure($)
+  const global = asList(await $.store.get(GLOBAL_KEY))
+  const local = asList(await $.store.get(loaded.key))
+  if (JSON.stringify(global) !== JSON.stringify(loaded.global) || JSON.stringify(local) !== JSON.stringify(loaded.local)) {
+    await update($, lib, cur => (cur === null ? cur : { ...cur, global, local }))
+  }
+}
+
 // Read, change, write: the store first, so a second session's prompts are not overwritten. False when the store refused.
 async function mutate($: EngineInterface, scope: PromptScope, change: (list: Prompt[]) => Prompt[]): Promise<boolean> {
   const loaded = await ensure($)
@@ -48,8 +58,12 @@ async function mutate($: EngineInterface, scope: PromptScope, change: (list: Pro
   return true
 }
 
+// A note shows for this long, then the pane stops drawing it (it is checked when the pane draws).
+const NOTE_MS = 8000
+
 async function say($: EngineInterface, text: string, tone: PromptNote['tone']) {
-  await update($, lastNote, () => ({ text, tone }))
+  const at = await $.clock.now()
+  await update($, lastNote, () => ({ text, tone, at }))
 }
 
 const SCOPE_WORD: Record<PromptScope, string> = { global: 'all projects', project: 'only this project' }
@@ -59,7 +73,9 @@ async function save($: EngineInterface, args: string, scopeOverride?: PromptScop
   const parsed = parseSave(args)
   if ('error' in parsed) {
     return parsed.error === 'name'
-      ? 'Not saved: the name may have at most 40 characters and no |.'
+      ? parsed.isSecret === true
+        ? 'Not saved: the name looks like a secret. Please pick another name.'
+        : 'Not saved: the name may have at most 40 characters and no |.'
       : parsed.error === 'text'
         ? 'Not saved: the prompt text is missing after the colon.'
         : 'Not saved: please write it like this: /prompt-save <name>: <text> (with --project for this project only).'
@@ -84,11 +100,6 @@ async function save($: EngineInterface, args: string, scopeOverride?: PromptScop
 const REFUSAL: Record<string, string> = { no_composer: 'this surface does not let mods write into the prompt box', dialog: 'a dialog is open' }
 const why = (refusal: string | undefined) => (refusal === undefined ? 'refused' : (REFUSAL[refusal] ?? refusal))
 
-// Puts the text in the prompt box. The engine has no caret position for it, so open placeholders stay as {{name}} in the text.
-async function fill($: EngineInterface, text: string) {
-  return $.prompt.fill({ text })
-}
-
 // The pane's "use": the prompt box first, the clipboard second, the full text in the card last.
 async function usePrompt($: EngineInterface, p: Prompt, surface: RenderSurface) {
   const holes = placeholders(p.text)
@@ -98,7 +109,7 @@ async function usePrompt($: EngineInterface, p: Prompt, surface: RenderSurface) 
     return
   }
   const text = await valuesFor($, p)
-  const box = await fill($, text)
+  const box = await $.prompt.fill({ text })
   if (box.isFilled) {
     await say($, `"${p.name}" is in the prompt box. Press Enter to send.`, 'success')
     return
@@ -134,13 +145,22 @@ async function copyPrompt($: EngineInterface, p: Prompt, surface: RenderSurface)
 }
 
 async function removePrompt($: EngineInterface, p: Prompt, scope: PromptScope) {
-  const isSaved = await mutate($, scope, list => list.filter(one => one.id !== p.id))
+  const isSaved = await mutate($, scope, list => list.filter(one => !(one.id === p.id && one.at === p.at)))
   await say($, isSaved ? `"${p.name}" deleted.` : 'Not deleted: the plugin store refused.', isSaved ? 'success' : 'error')
 }
 
 async function saveFromPane($: EngineInterface, value: string) {
   const answer = await save($, value, await read($, newScope))
-  await say($, answer, answer.startsWith('Not') ? 'error' : answer.includes('Warning') ? 'warning' : 'success')
+  const tone = answer.startsWith('Not') ? 'error' : answer.includes('Warning') ? 'warning' : 'success'
+  await say($, answer, tone)
+  // Saved: the field closes, so the typed text cannot be saved twice.
+  if (tone !== 'error') await update($, creating, () => false)
+}
+
+// Opens or closes the field; an old note goes away with it.
+async function toggleNew($: EngineInterface) {
+  await update($, creating, v => !v)
+  if ((await read($, lastNote)) !== null) await update($, lastNote, () => null)
 }
 
 // `/p <name> [values]`: into the box; where no box takes it, the text as the command's output.
@@ -150,7 +170,7 @@ async function runP($: EngineInterface, args: string): Promise<string> {
   const found = findByName([...loaded.local, ...loaded.global], args)
   if (found === undefined) return `No prompt "${args.trim().slice(0, 40)}" found. /prompts shows the list.`
   const { text, open } = compose(found.prompt, found.rest)
-  const box = await fill($, text)
+  const box = await $.prompt.fill({ text })
   if (box.isFilled) {
     const left = open.length > 0 ? ` Still open: ${open.map(hole => `{{${hole}}}`).join(', ')}.` : ''
 
@@ -171,9 +191,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The project can move (/cd, a worktree): checked after each turn, loaded only when it changed.
+  // The project can move (/cd, a worktree) and other sessions change the lists: checked after each turn.
   on('turn.complete', async ($, e, next) => {
-    await ensure($)
+    await refresh($)
 
     return next(e)
   })
@@ -204,6 +224,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   const q = await read($, query)
   const open = await read($, openId)
   const told = await read($, lastNote)
+  const now = await $.clock.now()
   const typed = await read($, values)
   const scope = await read($, newScope)
   const isCreating = await read($, creating)
@@ -274,7 +295,7 @@ export async function view($: EngineInterface, e: RenderInput) {
         </Box>
         <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end" gap={SPACE.base}>
           <Text dimColor size={TYPE.label} wrap="truncate">{needle === '' ? `${total}` : `${shown.length} of ${total}`}</Text>
-          <Button key="new" plain onPress={() => update($, creating, v => !v)}>
+          <Button key="new" plain onPress={() => toggleNew($)}>
             <Text size={TYPE.label} color="#39639E" weight="semibold">{isCreating ? '✕' : '＋ new'}</Text>
           </Button>
         </Box>
@@ -300,7 +321,7 @@ export async function view($: EngineInterface, e: RenderInput) {
         ) : (
           <Text dimColor size={TYPE.label} wrap="wrap">{'No input field here: use /prompt-save <name>: <text>.'}</Text>
         ))}
-      {told !== null && note(ui, 'note', told.text, told.tone)}
+      {told !== null && now - told.at < NOTE_MS && note(ui, 'note', told.text, told.tone)}
 
       {total === 0 && emptyState(ui, 'empty', '❝', 'No prompts yet. Tap "＋ new" or /prompt-save review: Check {{file}} for errors.')}
       {total > 0 && shown.length === 0 && emptyState(ui, 'no-hits', '⌕', `Nothing found for "${q.trim()}".`)}

@@ -1,7 +1,7 @@
 import type { RenderInput } from 'claude-code'
 
 // The pane's width in cells. Falls back to the viewport, then to a middle value.
-export const columns = (e: RenderInput): number => {
+const columns = (e: RenderInput): number => {
   const props = (e as unknown as { props?: { bodyColumns?: number } }).props
   const viewport = (e as unknown as { viewport?: { columns?: number } }).viewport
 
@@ -9,4 +9,3 @@ export const columns = (e: RenderInput): number => {
 }
 
 export const isNarrow = (e: RenderInput) => columns(e) < 44
-export const isWide = (e: RenderInput) => columns(e) >= 68

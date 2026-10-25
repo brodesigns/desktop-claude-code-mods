@@ -73,8 +73,8 @@ test('formatting and day keys', () => {
   expect(money(4.2)).toBe(usd(4.2))
   expect(money(1234.5)).toBe(usd(1234.5))
   expect(money(4.2)).toMatch(/4.20/)
-  expect(plural(1, 'Turn', 'Turns')).toBe('1 Turn')
-  expect(plural(38, 'Turn', 'Turns')).toBe('38 Turns')
+  expect(plural(1, 'turn', 'turns')).toBe('1 turn')
+  expect(plural(38, 'turn', 'turns')).toBe('38 turns')
 })
 
 test('a turn adds to the day, merged with the other sessions of today', async ($, on) => {
@@ -89,7 +89,7 @@ test('a turn adds to the day, merged with the other sessions of today', async ($
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(band(surface))
-    expect(await line(ui as never)).toBe(`☀ Today 1 h 10 min · ≈ ${usd(4.2)} · 31 Turns · 5 Commits`)
+    expect(await line(ui as never)).toBe(`☀ Today 1 h 10 min · ≈ ${usd(4.2)} · 31 turns · 5 commits`)
     // The bands beneath (here the engine's stand-in) still draw under it.
     expect((await ui.find({ type: 'Text', text: /engine/ })) != null).toBe(true)
     await ui.unmount()
@@ -133,7 +133,7 @@ test('a new day starts empty and old days are pruned', async ($, on) => {
 
   await $.turn.complete(turn('t1', 2 * MIN))
   const before = await $.ui.mount(band('terminal'))
-  expect(await line(before as never)).toBe('☀ Today 2 min · 1 Turn · 5 Commits')
+  expect(await line(before as never)).toBe('☀ Today 2 min · 1 turn · 5 commits')
   await before.unmount()
 
   await clock.advance(14 * HOUR + MIN)
@@ -146,7 +146,7 @@ test('a new day starts empty and old days are pruned', async ($, on) => {
   await $.turn.complete(turn('t2', 3 * MIN))
   expect(w.store.get(entryKey('2026-10-24', 'me'))).toEqual({ ms: 3 * MIN, turns: 1, usd: 0 })
   const ui = await $.ui.mount(band('desktop'))
-  expect(await line(ui as never)).toBe('☀ Today 3 min · 1 Turn · 5 Commits')
+  expect(await line(ui as never)).toBe('☀ Today 3 min · 1 turn · 5 commits')
   await ui.unmount()
 })
 
@@ -173,10 +173,77 @@ test('a survey holds the band', async ($, on) => {
 
   for (const surface of SURFACES) {
     const shown = await $.ui.mount(band(surface))
-    expect(await line(shown as never)).toBe(`☀ Today 1 h · ≈ ${usd(2.95)} · 30 Turns · 5 Commits`)
+    expect(await line(shown as never)).toBe(`☀ Today 1 h · ≈ ${usd(2.95)} · 30 turns · 5 commits`)
     await shown.unmount()
     const ui = await $.ui.mount(band(surface, true))
     expect(await line(ui as never)).toBe(null)
     await ui.unmount()
   }
+})
+
+test('git runs at start, on the minute tick and after a commit by Claude, not on every turn or measure', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = world(on)
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/home/x/demo', surface: 'desktop', isInteractive: true })
+  const count = () => w.gitCalls.filter(a => a.includes('rev-list')).length
+  expect(count()).toBe(1)
+
+  w.cost.usd = 1
+  await $.turn.complete(turn('t1', MIN))
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: [], cost: { usd: 1 }, changed: ['cost'] } as never)
+  await $.turn.complete(turn('t2', MIN))
+  expect(count()).toBe(1)
+
+  await $.tool.call({ tool: 'Bash', command: 'ls -la && git status' })
+  await $.tool.call({ tool: 'Bash', command: 'git log --oneline' })
+  expect(count()).toBe(1)
+
+  await $.tool.call({ tool: 'Bash', command: 'git add . && git commit -m "x"' })
+  expect(count()).toBe(2)
+  await $.tool.call({ tool: 'Bash', command: 'git rebase main' })
+  expect(count()).toBe(3)
+
+  await clock.advance(MIN)
+  expect(count()).toBe(4)
+  // The author lookup ran once for the project, not on every count.
+  expect(w.gitCalls.filter(a => a.includes('config')).length).toBe(1)
+})
+
+test('overlapping turns and measures end with consistent totals', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  const w = world(on)
+  await $.session.start({ cwd: '/home/x/demo', surface: 'desktop', isInteractive: true })
+
+  w.cost.usd = 1
+  await Promise.all([
+    $.turn.complete(turn('t1', 2 * MIN)),
+    $.turn.complete(turn('t2', 3 * MIN)),
+    $.session.measure({ context: { window: 200_000 }, rateLimits: [], cost: { usd: 1 }, changed: ['cost'] } as never),
+  ])
+  const ui = await $.ui.mount(band('desktop'))
+  expect(await line(ui as never)).toBe(`☀ Today 5 min · ≈ ${usd(0.5)} · 2 turns · 5 commits`)
+  await ui.unmount()
+})
+
+test('a narrow band keeps time and cost and drops turns and commits', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  const copies: string[] = []
+  on('ui.copy', (_, e) => {
+    copies.push((e as unknown as { text: string }).text)
+    return { value: { isCopied: true } } as never
+  })
+  world(on, { [entryKey(TODAY, 'other')]: { ms: HOUR, turns: 30, usd: 2.95 } })
+  await $.session.start({ cwd: '/home/x/demo', surface: 'desktop', isInteractive: true })
+
+  for (const surface of SURFACES) {
+    const narrow = { ...(band(surface) as object) } as { props: Record<string, unknown> }
+    const ui = await $.ui.mount({ ...narrow, props: { ...narrow.props, bodyColumns: 43 } } as never)
+    expect(await line(ui as never)).toBe(`☀ Today 1 h · ≈ ${usd(2.95)}`)
+    expect((await ui.find({ type: 'Text', text: /Today/ }))?.props.wrap).toBe('truncate')
+    await ui.press({ key: 'daily' })
+    await ui.unmount()
+  }
+  // The copied summary is still complete.
+  expect(copies[0]).toBe(`Today: 1 h · ≈ ${usd(2.95)} · 30 turns · 5 commits`)
 })

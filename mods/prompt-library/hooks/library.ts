@@ -1,9 +1,10 @@
 import type { Prompt, PromptScope } from '../types'
 import { shortHash } from './hash'
+import { redact } from './keys'
 
 export const NAME_MAX = 40
 
-export type Parsed = { scope: PromptScope; name: string; text: string } | { error: 'syntax' | 'name' | 'text' }
+export type Parsed = { scope: PromptScope; name: string; text: string } | { error: 'syntax' | 'name' | 'text'; isSecret?: true }
 
 // `/prompt-save [--project] <name>: <text>`; the text may run over several lines.
 export const parseSave = (args: string): Parsed => {
@@ -20,6 +21,7 @@ export const parseSave = (args: string): Parsed => {
   const text = rest.slice(colon + 1).replace(/^[ \t]*\n?/, '').trimEnd()
   if (name === '') return { error: 'syntax' }
   if (name.length > NAME_MAX || /[|\n]/.test(name)) return { error: 'name' }
+  if (redact(name) !== name) return { error: 'name', isSecret: true }
   if (text.trim() === '') return { error: 'text' }
 
   return { scope, name, text }

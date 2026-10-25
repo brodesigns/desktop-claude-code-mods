@@ -2,7 +2,8 @@
 
 Band above the prompt: shows which environment is active in the project and which `.env` files exist. No model tokens.
 
-- **Display:** one line, e.g. `◉ development · .env.local, .env`. Red for `production` (also `prod`, `live`), yellow for `staging` (also `stage`, `preprod`, `uat`), calm otherwise. If no file names an environment, it reads `◉ Environment not set`. Without `.env` files the band is hidden.
+- **Display:** one row, e.g. `◉ development .env.local .env`. Red for `production` (also `prod`, `live`), yellow for `staging` (also `stage`, `preprod`, `uat`), calm otherwise. If no file names an environment, only the dim file buttons show (`◉ .env.local · .env`), with no warning wording. More files than shown add a dim `+N`. Long text is cut, the band stays one row. Without `.env` files the band is hidden.
+- **Click:** a file name shows the file in Finder (macOS, `open -R`) or opens its folder (Linux, `xdg-open <folder>`); the content is never opened.
 - **Source:** `.env`, `.env.local`, `.env.production` and every other `.env.*` in the session's project folder. The name comes from `NODE_ENV`, `APP_ENV` or `ENV`, looked up in the files in this order: `.env.local`, `.env`, `.env.<mode>.local`, `.env.<mode>`.
 - **Privacy:** only the environment name and the file names are shown. No other value is displayed or stored, and the name only when it is a plain word (no URL, no `${...}` interpolation). `.env.keys` and `.env.vault` are only listed, never read.
 - **When:** a look into the project folder every 30 seconds, and right away when Claude writes a `.env` file. Only files whose size or modification time changed are read again.

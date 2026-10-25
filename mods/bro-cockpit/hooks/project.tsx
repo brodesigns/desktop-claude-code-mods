@@ -30,7 +30,6 @@ let loaded = ''
 export async function loadProject($: EngineInterface, project: string) {
   const root = await $.session.root()
   if (`${project}\n${root}` === loaded) return
-  loaded = `${project}\n${root}`
   let names: string[] = []
   try {
     names = (await $.fs.list(root)).map(f => f.name)
@@ -69,6 +68,8 @@ export async function loadProject($: EngineInterface, project: string) {
   await update($, ideas, () => saved)
   const data: ProjectInfo = { project, root: root.replace(/^\/Users\/[^/]+/, '~'), kinds, scripts, key }
   await update($, info, () => data)
+  // Marked as loaded only now: a failure above leaves the project to be tried again on the next poll.
+  loaded = `${project}\n${root}`
   await refreshCounts($)
 }
 

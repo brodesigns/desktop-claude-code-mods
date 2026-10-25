@@ -15,9 +15,18 @@ const PANE = {
 
 const ran = (exitCode: number, stdout: string) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
+// What the engine saw: the pane being open, every git call, every file read, and a counter that stamps todo.md
+// like a file system would (every write moves the modification time).
+const seen = { isPaneUp: true, git: [] as string[][], reads: [] as string[], stamp: 1 }
+
 // The engine beneath the cockpit: a project at /p with a todo.md and some changed code, a state kept in a Map.
 function world(on: On, files: Record<string, string>, status: string | null, opened: string[][] = [], listing?: { name: string; kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean }[]) {
   const state = new Map<string, unknown>([['cockpitTab', 'todo']])
+  seen.isPaneUp = true
+  seen.git = []
+  seen.reads = []
+  seen.stamp = 1
+  on('ui.panes', () => ({ value: [{ id: 'bro-cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: seen.isPaneUp }] }))
   on('state.get', (_, e) => ({ value: { value: state.get((e as { key: string }).key), version: 1 } }))
   on('state.set', (_, e) => {
     state.set((e as { key: string }).key, (e as unknown as { value: unknown }).value)
@@ -30,16 +39,18 @@ function world(on: On, files: Record<string, string>, status: string | null, ope
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
-  on('fs.list', () => ({ value: listing ?? Object.keys(files).map(f => ({ name: f.split('/').pop() as string, kind: 'file' as const, size: 1, mtimeMs: 1, isLink: false })) }))
+  on('fs.list', () => ({ value: listing ?? Object.keys(files).map(f => ({ name: f.split('/').pop() as string, kind: 'file' as const, size: files[f]?.length ?? 0, mtimeMs: seen.stamp, isLink: false })) }))
   on('fs.stat', (_, e) => {
     const text = files[e.path]
     return text === undefined ? { deny: 'ENOENT' } : { value: { kind: 'file' as const, size: text.length, mtimeMs: 1, isLink: false } }
   })
   on('fs.read', (_, e) => {
+    seen.reads.push(e.path)
     const text = files[e.path]
     return text === undefined ? { deny: 'ENOENT' } : { value: text }
   })
   on('fs.write', (_, e) => {
+    seen.stamp += 1
     files[e.path] = e.text
     return { value: undefined }
   })
@@ -48,6 +59,7 @@ function world(on: On, files: Record<string, string>, status: string | null, ope
       opened.push(e.argv)
       return ran(0, '')
     }
+    seen.git.push(e.argv)
     if (status === null) return ran(128, '')
     if (e.argv.includes('rev-parse')) return ran(0, '/p\n')
     // `git grep -n -w -e M ...`: every line of every file with one of the words, as `path:line:text`.
@@ -285,10 +297,12 @@ test('no marker anywhere: no "In code" section', async ($, on) => {
 test('without git a file Claude writes counts at once', async ($, on) => {
   const files: Record<string, string> = {}
   world(on, files, null)
-  await begin($ as never, on)
+  const clock = await begin($ as never, on)
 
   files['/p/new.ts'] = '// XXX later\n'
   await $.tool.call({ tool: 'Write', file_path: 'new.ts', content: files['/p/new.ts'] })
+  // The look at the project runs beside the tool result, not before it.
+  await clock.advance(0)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /1 XXX in 1 file/ })) != null).toBe(true)
@@ -330,4 +344,89 @@ test('helpers: whole words, first marker names the hit, binary and generated fil
   expect(sum.fileCount).toBe(2)
   expect(parseMarkers('')).toEqual(['TODO', 'FIXME', 'HACK', 'XXX'])
   expect(parseMarkers(' NOTE ,x y,NOTE')).toEqual(['NOTE'])
+})
+
+test('git grep runs from the repository root, not from the session folder', async ($, on) => {
+  world(on, { '/p/a.ts': '// TODO one\n' }, '')
+  await begin($ as never, on)
+  const grep = seen.git.find(argv => argv.includes('grep'))
+  expect(grep).toBeDefined()
+  expect(grep?.slice(grep.indexOf('-C'), grep.indexOf('-C') + 3)).toEqual(['-C', '/p', 'grep'])
+})
+
+test('the polls rest while the pane is closed; /cockpit looks once at once', async ($, on) => {
+  const files: Record<string, string> = { '/p/a.ts': 'clean\n', '/p/todo.md': '- [ ] one\n' }
+  world(on, files, '')
+  const clock = await begin($ as never, on)
+
+  seen.isPaneUp = false
+  files['/p/a.ts'] = '// TODO later\n'
+  files['/p/todo.md'] = '- [ ] one\n- [ ] two\n'
+  seen.stamp += 1
+  const grepsBefore = seen.git.filter(argv => argv.includes('grep')).length
+  await clock.advance(60_000)
+  expect(seen.git.filter(argv => argv.includes('grep')).length).toBe(grepsBefore)
+  const closed = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await closed.find({ type: 'Text', text: /☐ two/ })) == null).toBe(true)
+  await closed.unmount()
+
+  await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 80 } })
+  await clock.advance(0)
+  const open = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await open.find({ type: 'Text', text: /☐ two/ })) != null).toBe(true)
+  expect((await open.find({ type: 'Button', text: /a\.ts:1\s+\/\/ TODO later/ })) != null).toBe(true)
+  await open.unmount()
+
+  // Open again: the polls run.
+  seen.isPaneUp = true
+  files['/p/a.ts'] = '// TODO later\n// FIXME now\n'
+  await clock.advance(30_000)
+  const again = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await again.find({ type: 'Button', text: /a\.ts:2/ })) != null).toBe(true)
+  await again.unmount()
+})
+
+test('an unchanged todo.md is not read again; a changed one is', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] one\n' }
+  world(on, files, '')
+  const clock = await begin($ as never, on)
+  const readsAtStart = seen.reads.filter(p => p === '/p/todo.md').length
+  await clock.advance(30_000)
+  expect(seen.reads.filter(p => p === '/p/todo.md').length).toBe(readsAtStart)
+
+  files['/p/todo.md'] = '- [ ] one\n- [ ] two\n'
+  seen.stamp += 1
+  await clock.advance(5_000)
+  expect(seen.reads.filter(p => p === '/p/todo.md').length).toBe(readsAtStart + 1)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /☐ two/ })) != null).toBe(true)
+  await ui.unmount()
+})
+
+test('two ticks at the same moment both land in the file', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] a\n- [ ] b\n- [ ] c\n' }
+  world(on, files, '')
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await Promise.all([ui.press({ key: 'item-0' }), ui.press({ key: 'item-1' })])
+  expect(files['/p/todo.md']).toBe('- [ ] c\n')
+  await ui.unmount()
+})
+
+test('a hit stays on one row: file, line and text in one text', async ($, on) => {
+  world(on, { '/p/a.ts': '// TODO ' + 'very long text '.repeat(20) + '\n' }, '')
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const texts = await ui.findAll({ type: 'Text', text: /a\.ts:1.*very long/ })
+  expect(texts.length).toBeGreaterThan(0)
+  await ui.unmount()
+})
+
+test('/cockpit with an unknown tab says so and still opens the pane', async ($, on) => {
+  world(on, {}, '')
+  await begin($ as never, on)
+  const run = (args: string) => $.command.run({ command: 'cockpit', args, origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 80 } })
+  expect((await run('foo')).text).toMatch(/Unknown tab "foo"\. Try: home, files, agents, calls, meter, errors, todo, project/)
+  expect((await run('todo')).text).toBe('Cockpit pane opened.')
+  expect((await run('')).text).toBe('Cockpit pane opened.')
 })

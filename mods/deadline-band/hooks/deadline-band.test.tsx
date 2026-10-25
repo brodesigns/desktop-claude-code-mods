@@ -89,6 +89,24 @@ test('dates parse in every accepted form', () => {
   expect(parseArgs('21.6. 25:00', NOW).kind).toBe('error')
 })
 
+test('today and tomorrow follow the calendar on days the clocks change', () => {
+  // Every day around the European and US changes, early and late: in any time zone, `now + 24 h` would land on
+  // the wrong date on a 23 or 25 hour day. Local-time dates, so the test reads the same everywhere.
+  for (const [month, from, to] of [[3, 20, 40], [9, 20, 45]] as const) {
+    for (let day = from; day <= to; day++) {
+      for (const [hh, mm] of [[0, 30], [23, 30]] as const) {
+        const now = new Date(2026, month, day, hh, mm).getTime()
+        const d = new Date(2026, month, day)
+        const next = new Date(2026, month, day + 1)
+        const tomorrow = parseArgs('tomorrow 9:05', now)
+        const today = parseArgs('today 9:05', now)
+        expect(tomorrow.kind === 'set' ? tomorrow.at : null).toBe(local(next.getFullYear(), next.getMonth() + 1, next.getDate(), 9, 5))
+        expect(today.kind === 'set' ? today.at : null).toBe(local(d.getFullYear(), d.getMonth() + 1, d.getDate(), 9, 5))
+      }
+    }
+  }
+})
+
 test('countdown and labels', () => {
   expect(dateLabel(local(2026, 6, 21), false, NOW)).toBe('Sun Jun 21')
   expect(dateLabel(local(2026, 6, 21, 14, 0), true, NOW)).toBe('Sun Jun 21 14:00')
@@ -218,4 +236,49 @@ test('under a survey and further away than fromDays the band stays hidden', { op
     expect((await survey.find({ type: 'Button', text: /Release/ })) == null).toBe(true)
     await survey.unmount()
   }
+})
+
+test('a deadline set or cleared in another session arrives on the minute tick', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const store = memStore(on)
+  world(on)
+  await $.session.start({ cwd: `${ROOT}/src`, surface: 'desktop', isInteractive: true })
+
+  const none = await $.ui.mount(band('desktop'))
+  expect((await none.find({ type: 'Button', text: /Handover/ })) == null).toBe(true)
+  await none.unmount()
+
+  // Another session of the same project sets one; the cached view only learns of it on the tick.
+  store.set(KEY, { at: local(2026, 6, 21), text: 'Handover', hasTime: false })
+  await clock.advance(MIN)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount(band(surface))
+    expect((await ui.find({ type: 'Button', text: /Handover in 9 days 13 h/ })) != null).toBe(true)
+    await ui.unmount()
+  }
+
+  store.delete(KEY)
+  await clock.advance(MIN)
+  const gone = await $.ui.mount(band('terminal'))
+  expect((await gone.find({ type: 'Button', text: /Handover/ })) == null).toBe(true)
+  await gone.unmount()
+})
+
+test('the band is one truncating row and a click shows the full date', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  memStore(on, { [KEY]: { at: local(2027, 1, 8), text: 'Release', hasTime: false } })
+  world(on)
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push((e as unknown as { text: string }).text)
+    return { value: undefined } as never
+  })
+  await $.session.start({ cwd: `${ROOT}/src`, surface: 'desktop', isInteractive: true })
+
+  const ui = await $.ui.mount(band('desktop', 40))
+  expect((await ui.find({ type: 'Text', text: /Release in/ }))?.props.wrap).toBe('truncate')
+  expect((await ui.find({ type: 'Text', text: /Fri Jan 8/ })) == null).toBe(true)
+  await ui.press({ key: 'deadline' })
+  expect(toasts[0]).toMatch(/Fri Jan 8 2027 · \/deadline off to clear$/)
+  await ui.unmount()
 })

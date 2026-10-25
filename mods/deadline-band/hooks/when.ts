@@ -51,7 +51,9 @@ const dateToken = (token: string, now: number): DateToken | null => {
   }
   const lower = token.toLowerCase()
   if (lower === 'today' || lower === 'tomorrow') {
-    const day = new Date(now + (lower === 'today' ? 0 : 1) * DAY)
+    // Calendar arithmetic, not `now + DAY`: a day is 23 or 25 hours long when the clocks change.
+    const t = new Date(now)
+    const day = new Date(t.getFullYear(), t.getMonth(), t.getDate() + (lower === 'today' ? 0 : 1))
     return { y: day.getFullYear(), m: day.getMonth() + 1, d: day.getDate() }
   }
 
