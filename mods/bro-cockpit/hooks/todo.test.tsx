@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { changedPaths, countMarkers, parseMarkers } from './markerscan'
-import { findName, parse, remove, restore } from './todomd'
+import { append, entriesFrom, findName, parse, remove, restore } from './todomd'
 
 const ROOT = '/p'
 const FILE = `# Launch\n- [ ] Write the readme\n  - [ ] Add screenshots\n  note under it\n- [x] Pick a name\n- Plain bullet\n\n## Later\n1. [ ] Ship it\n`
@@ -183,6 +183,47 @@ test('a symlinked todo.md is found', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /☐ linked/ })) != null).toBe(true)
   await ui.unmount()
+})
+
+test('adding: lines become entries at the end, in the file\'s own line ending; a missing file is created', () => {
+  expect(entriesFrom('  - [ ] one\n\n* two\n3. three\nplain')).toEqual(['one', 'two', 'three', 'plain'])
+  expect(entriesFrom('   \n  ')).toEqual([])
+  expect(append('- [ ] a\n', ['b'])).toBe('- [ ] a\n- [ ] b\n')
+  expect(append('- [ ] a', ['b', 'c'])).toBe('- [ ] a\n- [ ] b\n- [ ] c\n')
+  expect(append('- [ ] a\r\n', ['b'])).toBe('- [ ] a\r\n- [ ] b\r\n')
+  expect(append(null, ['first'])).toBe('# Todo\n\n- [ ] first\n')
+  expect(append('', ['first'])).toBe('# Todo\n\n- [ ] first\n')
+})
+
+test('the add button writes to todo.md and the entry shows up; without a file it creates one', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] a\n' }
+  world(on, files, '')
+  await begin($ as never, on)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'add' })
+  await ui.unmount()
+  const open = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await open.input({ key: 'todo-add', text: 'second\nthird' })
+  expect(files['/p/todo.md']).toBe('- [ ] a\n- [ ] second\n- [ ] third\n')
+  await open.unmount()
+  const after = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await after.find({ type: 'Text', text: /☐ third/ })) != null).toBe(true)
+  expect((await after.find({ type: 'Text', text: /Added 2 entries to todo.md/ })) != null).toBe(true)
+  await after.unmount()
+})
+
+test('without a todo.md the add field creates it', async ($, on) => {
+  const files: Record<string, string> = {}
+  world(on, files, '', [], [])
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'add' })
+  await ui.unmount()
+  const open = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await open.input({ key: 'todo-add', text: 'first thing' })
+  expect(files['/p/todo.md']).toBe('# Todo\n\n- [ ] first thing\n')
+  await open.unmount()
 })
 
 test('no todo.md: the tab says so', async ($, on) => {

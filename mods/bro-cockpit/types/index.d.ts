@@ -102,6 +102,7 @@ declare module 'claude-code' {
       todoNote: TodoNote | null
       todoUndo: TodoUndo | null
       todoMarkers: TodoSummary | null
+      todoAdding: boolean
     }
   }
 }

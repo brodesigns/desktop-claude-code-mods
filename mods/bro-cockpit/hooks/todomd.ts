@@ -76,3 +76,19 @@ export const restore = (text: string, index: number, lines: string[]): string =>
 
 // The file name in the root: `todo.md` in any capitalisation.
 export const findName = (names: string[]): string | null => names.find(n => n.toLowerCase() === 'todo.md') ?? null
+
+// The lines typed into the add field as entries: one per non-empty line, a leading bullet or box is dropped.
+export const entriesFrom = (input: string): string[] =>
+  input
+    .split('\n')
+    .map(l => l.replace(/^\s*(?:[-*+]|\d+[.)])?\s*(?:\[.\]\s*)?/, '').trim())
+    .filter(l => l !== '')
+
+// New entries at the end of the file, in its own line ending. A missing file starts with a heading.
+export const append = (text: string | null, entries: readonly string[]): string => {
+  const eol = text?.includes('\r\n') ? '\r\n' : '\n'
+  const lines = entries.map(e => `- [ ] ${e}${eol}`).join('')
+  if (text === null || text === '') return `# Todo${eol}${eol}${lines}`
+
+  return `${text}${text.endsWith('\n') ? '' : eol}${lines}`
+}

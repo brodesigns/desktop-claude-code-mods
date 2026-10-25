@@ -9,14 +9,15 @@ import { label } from './markerscan'
 import { openInProject } from './open'
 import { setIfChanged } from './state'
 import { emptyState, legend, more, sectionTitle, SPACE, tile, tiles, toolbar, TYPE } from './style'
-import { findName, parse, remove, restore } from './todomd'
+import { append, entriesFrom, findName, parse, remove, restore } from './todomd'
 
 const list = atom({ plugin: 'bro-cockpit', key: 'todoList' } as const, null)
 const told = atom({ plugin: 'bro-cockpit', key: 'todoNote' } as const, null)
 const undoable = atom({ plugin: 'bro-cockpit', key: 'todoUndo' } as const, null)
 const markers = atom({ plugin: 'bro-cockpit', key: 'todoMarkers' } as const, null)
+const adding = atom({ plugin: 'bro-cockpit', key: 'todoAdding' } as const, false)
 
-const POLL_MS = 10_000
+const POLL_MS = 5_000
 // Code markers cost a git call and file reads: looked at less often.
 const MARKER_POLL_MS = 30_000
 const FILES_SHOWN = 8
@@ -106,6 +107,29 @@ async function tick($: EngineInterface, item: TodoItem) {
   }
 }
 
+// Adding: the typed lines go to the end of todo.md; without a file, one is created in the project root.
+async function addEntries($: EngineInterface, input: string) {
+  const entries = entriesFrom(input)
+  if (entries.length === 0) return
+  try {
+    const found = await locate($)
+    const path = found?.path ?? `${await $.session.root()}/todo.md`
+    const name = found?.name ?? 'todo.md'
+    const before = found === null ? null : await $.fs.read(path)
+    await $.fs.write(path, append(typeof before === 'string' ? before : null, entries))
+    await refreshTodo($)
+    await say($, `${entries.length === 1 ? 'Added' : `Added ${entries.length} entries`} to ${name}${found === null ? ' (new file)' : ''}.`, 'success')
+  } catch {
+    await say($, 'Not added: the todo.md could not be written.', 'error')
+  }
+}
+
+// The button: look at the file and the code markers now instead of at the next poll.
+async function refreshNow($: EngineInterface) {
+  await refreshTodo($)
+  await refreshMarkers($)
+}
+
 async function undo($: EngineInterface) {
   const last = await read($, undoable)
   if (last === null) return
@@ -150,6 +174,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   const code = await read($, markers)
   const message = await read($, told)
   const last = await read($, undoable)
+  const isAdding = await read($, adding)
 
   const open = data?.items.filter(i => !i.done) ?? []
   const doneCount = (data?.items.length ?? 0) - open.length
@@ -176,10 +201,24 @@ export async function view($: EngineInterface, e: RenderInput) {
     <Box flexDirection="column" gap={SPACE.base}>
       {tiles(ui, 'todo-tiles', [tile(ui, `${open.length}`, 'open', open.length > 0 ? 'warning' : 'neutral', data === null ? 'no todo.md' : data.name), tile(ui, `${codeTotal}`, 'in code', codeTotal > 0 ? 'warning' : 'neutral', code === null ? 'none found' : `${code.fileCount} ${code.fileCount === 1 ? 'file' : 'files'}`)])}
 
-      {last !== null && toolbar(ui, 'todo-undo', [<Button key="undo" label={narrow ? '↶ undo' : `↶ undo "${last.text.slice(0, 40)}"`} variant="secondary" onPress={() => undo($)} />])}
+      {toolbar(
+        ui,
+        'todo-bar',
+        [
+          <Button key="add" label={isAdding ? '✕ close' : '＋ add'} variant={isAdding ? 'secondary' : 'primary'} onPress={() => update($, adding, v => !v)} />,
+          <Button key="refresh" label="↻" variant="secondary" onPress={() => refreshNow($)} />,
+        ],
+        last !== null ? [<Button key="undo" label={narrow ? '↶ undo' : `↶ undo "${last.text.slice(0, 30)}"`} variant="secondary" onPress={() => undo($)} />] : undefined,
+      )}
+      {isAdding &&
+        ('Input' in ui ? (
+          <ui.Input key="todo-add" placeholder={data === null ? 'First entry (creates todo.md)' : 'New entry, one per line'} submitLabel="add" rows={narrow ? 2 : 3} onSubmit={(v: string) => addEntries($, v)} />
+        ) : (
+          <Text dimColor size={TYPE.label} wrap="wrap">No input field here: add the line to todo.md yourself.</Text>
+        ))}
       {message !== null && <Text key="todo-note" dimColor size={TYPE.label} wrap="wrap">{message.text}</Text>}
 
-      {data === null && emptyState(ui, 'todo-missing', '☐', 'No todo.md in the project folder. Create one with lines like "- [ ] task" and this tab fills itself.')}
+      {data === null && emptyState(ui, 'todo-missing', '☐', 'No todo.md in the project folder. Tap "＋ add" to create one, or write lines like "- [ ] task" yourself.')}
       {data !== null && open.length === 0 && emptyState(ui, 'todo-clear', '✓', doneCount > 0 ? `All done. ${doneCount} already ticked in the file.` : `${data.name} has no entries yet.`, 'success')}
       {rows as never}
       {more(ui, 'todo-more', open.length - ITEMS_SHOWN, 'more entries in the file')}
