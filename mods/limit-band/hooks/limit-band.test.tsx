@@ -99,7 +99,7 @@ test('warning from 80, error from 95, both windows side by side', async ($, on) 
   }
 })
 
-test('below the threshold, without limits, after the reset and under a survey the band stays hidden', async ($, on) => {
+test('below the threshold, without limits, after the reset and under a survey the band stays hidden', { options: { fiveHour: false } }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   let limits: Limit[] = [{ kind: 'five_hour', percentUsed: 49, resetsAt: iso(NOW + 10 * MIN) }]
   usage(on as never, () => limits)
@@ -163,5 +163,32 @@ test('a session.measure moves the band without a usage call', async ($, on) => {
   const ui = await $.ui.mount({ ...(band() as object), surface: 'terminal' } as never)
   expect(await colorOf(ui as never, /^⚠ 5h 97/)).toBe('error')
   expect((await ui.find({ type: 'Button', text: /5h/ }))?.text).toContain('↻ 5 min')
+  await ui.unmount()
+})
+
+test('the 5-hour countdown shows below the threshold, first, while the 7-day limit waits for it', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  usage(on as never, () => [
+    { kind: 'seven_day', percentUsed: 30, resetsAt: iso(NOW + 50 * 60 * MIN) },
+    { kind: 'five_hour', percentUsed: 12, resetsAt: iso(NOW + 4 * 60 * MIN + 10 * MIN) },
+  ])
+  engineBand(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...(band() as object), surface } as never)
+    expect((await ui.find({ type: 'Button', text: /5h 12%.*↻ 4 h 10 min/ })) != null).toBe(true)
+    expect((await ui.find({ type: 'Button', text: /7d/ })) == null).toBe(true)
+    await ui.unmount()
+  }
+})
+
+test('a 5-hour window without a reset time has no countdown to show', async ($, on) => {
+  mock.clock(on, { now: NOW })
+  usage(on as never, () => [{ kind: 'five_hour', percentUsed: 0 }])
+  engineBand(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...(band() as object), surface: 'desktop' } as never)
+  expect((await ui.find({ type: 'Button', text: /5h/ })) == null).toBe(true)
   await ui.unmount()
 })

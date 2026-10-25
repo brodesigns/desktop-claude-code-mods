@@ -10,18 +10,19 @@ const LABEL: Record<string, string> = { five_hour: '5h', seven_day: '7d', spend_
 const MARK = { neutral: '◔', warning: '◕', error: '⚠' } as const
 const TICK_MS = 30_000
 
-type Settings = { threshold: number; sevenDay: boolean }
-let settings: Settings = { threshold: 50, sevenDay: true }
+type Settings = { threshold: number; sevenDay: boolean; fiveHour: boolean }
+let settings: Settings = { threshold: 50, sevenDay: true, fiveHour: true }
 let timer: { cancel: () => void } | null = null
 
-// Only the windows worth showing: over the threshold, not yet reset. With none, `at` stays 0, so a
-// quiet minute writes nothing and redraws nothing.
+// Only the windows worth showing: over the threshold, not yet reset; the 5-hour window also below it while its
+// reset is known (`fiveHour`), first in the row. With none, `at` stays 0, so a quiet minute writes nothing and
+// redraws nothing.
 export const snapOf = (limits: readonly SessionRateLimit[], now: number, cfg: Settings): LimitSnap => {
   const rows: LimitRow[] = limits
     .filter(l => l.kind !== 'seven_day' || cfg.sevenDay)
     .map(l => ({ kind: l.kind, percent: Math.round(l.percentUsed), resetsAt: l.resetsAt === undefined ? 0 : Date.parse(l.resetsAt) || 0 }))
-    .filter(r => r.percent >= cfg.threshold && (r.resetsAt === 0 || r.resetsAt > now))
-    .sort((a, b) => b.percent - a.percent)
+    .filter(r => (cfg.fiveHour && r.kind === 'five_hour' && r.resetsAt > now) || (r.percent >= cfg.threshold && (r.resetsAt === 0 || r.resetsAt > now)))
+    .sort((a, b) => Number(b.kind === 'five_hour') - Number(a.kind === 'five_hour') || b.percent - a.percent)
 
   return { at: rows.length === 0 ? 0 : Math.floor(now / 60_000) * 60_000, rows }
 }
@@ -72,6 +73,7 @@ export const register: Register = (on, options) => {
   settings = {
     threshold: Number.isFinite(threshold) ? Math.min(100, Math.max(0, threshold)) : 50,
     sevenDay: options.sevenDay !== false,
+    fiveHour: options.fiveHour !== false,
   }
 
   on('session.start', async ($, e, next) => {
@@ -95,12 +97,12 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const s = await read($, snap)
-    const worst = s?.rows[0]
+    // Narrow: only the fullest window; the rows are ordered with the 5-hour one first.
+    const worst = s?.rows.reduce<LimitRow | undefined>((a, b) => (a === undefined || b.percent > a.percent ? b : a), undefined)
     if (e.props.hasSurvey || s === null || worst === undefined) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const narrow = e.props.bodyColumns < 56
-    const tone = toneOf(worst.percent)
     const rows = narrow ? [worst] : s.rows
 
     // The bands of the plugins beneath stay drawn, under this one.
