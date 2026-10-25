@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
-import { ASK_MAX, bullets, buildPrompt, clip, digestTurn, parseSummary, SYSTEM, tokensWord, WAITING_MAX } from './digest'
+import { ASK_MAX, bullets, buildPrompt, cleanLanguage, clip, digestTurn, LANGUAGES, parseSummary, RESTATE_SYSTEM, systemFor, tokensWord, WAITING_MAX } from './digest'
 import { redact } from './keys'
 import { isNarrow } from './layout'
 import { emptyState, note, SPACE, TYPE } from './style'
@@ -17,12 +17,18 @@ const told = atom({ plugin: 'session-summary', key: 'summaryNote' } as const, nu
 // The pane's switch for the automatic updates: null until the person (or a saved choice) sets it, then the setting `auto` applies.
 const autoOn = atom({ plugin: 'session-summary', key: 'autoOn' } as const, null)
 
+// The pane's language choice: null until set, then the setting `language` applies.
+const languageNow = atom({ plugin: 'session-summary', key: 'languageNow' } as const, null)
+
 const STORE_KEY = 'session-summary:auto'
+const LANGUAGE_KEY = 'session-summary:language'
 
 // From userConfig; a reload brings a changed value.
 let model = 'haiku'
 // The setting `auto`: what holds while no choice was made in the pane.
 let isAuto = true
+// The setting `language`: what holds while no choice was made in the pane.
+let settingLanguage = 'English'
 // One update at a time; a turn that ends while one runs makes it go round once more.
 let isRunning = false
 let isDue = false
@@ -62,7 +68,7 @@ async function summarize($: EngineInterface) {
       const before = await read($, summary)
       const reply = await $.model.complete({
         model,
-        system: SYSTEM,
+        system: systemFor(await currentLanguage($)),
         prompt: buildPrompt(before?.text ?? '', digests.map(d => d.text)),
         maxTokens: 220,
         effort: 'low',
@@ -98,6 +104,49 @@ async function summarize($: EngineInterface) {
 }
 
 // The pane's choice wins over the setting; it is kept across sessions.
+async function currentLanguage($: EngineInterface): Promise<string> {
+  return (await read($, languageNow)) ?? settingLanguage
+}
+
+// The next language in the list (the setting's own one first when it is not in the list).
+async function nextLanguage($: EngineInterface) {
+  const all: string[] = [...LANGUAGES]
+  if (!all.includes(settingLanguage)) all.unshift(settingLanguage)
+  const now = await currentLanguage($)
+  const next = all[(Math.max(0, all.indexOf(now)) + 1) % all.length] ?? 'English'
+  await update($, languageNow, () => next)
+  try {
+    await $.store.set(LANGUAGE_KEY, next)
+  } catch {
+    // The choice holds for this session even when it cannot be kept.
+  }
+  await restate($, next)
+}
+
+// A summary that exists is written again in the new language, from its own text (a few dozen tokens).
+// Skipped while an update runs: that one writes in the language it started with, the next one in the new.
+async function restate($: EngineInterface, language: string) {
+  const current = await read($, summary)
+  if (current === null || isRunning) return
+  isRunning = true
+  try {
+    await update($, isBusy, () => true)
+    const reply = await $.model.complete({ model, system: RESTATE_SYSTEM(language), prompt: `<summary>\n${current.text.replace(/[<>]/g, '')}\n</summary>`, maxTokens: 220, effort: 'low', timeoutMs: 30_000 })
+    const text = reply.isAnswered ? parseSummary(redact(reply.text)) : ''
+    if (reply.isAnswered && text !== '') {
+      const spent = reply.usage.input_tokens + reply.usage.output_tokens
+      await update($, summary, cur => (cur === null ? cur : { ...cur, text, tokens: cur.tokens + spent }))
+    } else {
+      await update($, told, () => ({ text: `Not rewritten in ${language}: the next update will use it.`, tone: 'warning' as const }))
+    }
+  } catch {
+    await update($, told, () => ({ text: `Not rewritten in ${language}: the next update will use it.`, tone: 'warning' as const }))
+  } finally {
+    isRunning = false
+    await update($, isBusy, () => false)
+  }
+}
+
 async function isAutomatic($: EngineInterface): Promise<boolean> {
   return (await read($, autoOn)) ?? isAuto
 }
@@ -132,12 +181,15 @@ export const register: Register = (on, options) => {
   const wanted = String(options.model ?? '').trim()
   model = wanted === '' ? 'haiku' : wanted
   isAuto = options.auto !== false
+  settingLanguage = cleanLanguage(options.language)
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'summary', description: 'Open the pane with the short summary of this session' })
     try {
       const saved = await $.store.get(STORE_KEY)
       if (typeof saved === 'boolean') await update($, autoOn, () => saved)
+      const lang = await $.store.get(LANGUAGE_KEY)
+      if (typeof lang === 'string') await update($, languageNow, () => cleanLanguage(lang))
     } catch {
       // No saved choice: the setting applies.
     }
@@ -197,6 +249,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   const busy = await read($, isBusy)
   const message = await read($, told)
   const automatic = (await read($, autoOn)) ?? isAuto
+  const language = (await read($, languageNow)) ?? settingLanguage
 
   return (
     <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
@@ -208,6 +261,9 @@ export async function view($: EngineInterface, e: RenderInput) {
           <Text dimColor size={TYPE.label} wrap="truncate">
             {busy ? 'updating …' : data === null ? model : `${data.turns} ${data.turns === 1 ? 'turn' : 'turns'} · ${model} · ${tokensWord(data.tokens)} tokens`}
           </Text>
+          <Button key="language" plain onPress={() => nextLanguage($)}>
+            <Text size={TYPE.label} dimColor weight="semibold">{narrow ? language.slice(0, 2).toUpperCase() : language}</Text>
+          </Button>
           <Button key="auto" plain onPress={() => toggleAuto($)}>
             <Text size={TYPE.label} color={automatic ? '#39639E' : undefined} dimColor={!automatic} weight="semibold">{automatic ? '● auto' : '○ auto off'}</Text>
           </Button>

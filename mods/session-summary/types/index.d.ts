@@ -15,6 +15,8 @@ declare module 'claude-code' {
       summaryNote: SummaryNote | null
       // The pane's switch for automatic updates; null: the setting `auto` applies.
       autoOn: boolean | null
+      // The language of the summary chosen in the pane; null: the setting `language` applies.
+      languageNow: string | null
     }
   }
 }

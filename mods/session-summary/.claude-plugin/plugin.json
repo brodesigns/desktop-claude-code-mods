@@ -1,6 +1,6 @@
 {
   "name": "session-summary",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Pane with a very short running summary of what happened in this session, written after each turn by the cheapest model (Haiku) from a small digest, not from the whole transcript",
   "author": { "name": "BroDesigns" },
   "license": "MIT",
@@ -11,6 +11,12 @@
       "title": "Model",
       "description": "Model that writes the summary: an alias or a model id. The cheapest one is haiku.",
       "default": "haiku"
+    },
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language the summary is written in, for example English, German or French. The button in the pane switches it and its choice wins.",
+      "default": "English"
     },
     "auto": {
       "type": "boolean",
