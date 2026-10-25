@@ -1,6 +1,6 @@
 {
   "name": "daily-band",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Band above the prompt: today's working time, cost, turns and commits, summed over every session of the day",
   "author": { "name": "BroDesigns" },
   "license": "MIT",

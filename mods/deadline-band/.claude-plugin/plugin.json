@@ -1,6 +1,6 @@
 {
   "name": "deadline-band",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Band above the prompt: countdown to the project's deadline, set with /deadline <date> [text], coloured by urgency",
   "author": { "name": "BroDesigns" },
   "license": "MIT",

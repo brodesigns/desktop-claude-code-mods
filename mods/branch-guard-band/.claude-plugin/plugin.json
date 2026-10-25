@@ -1,6 +1,6 @@
 {
   "name": "branch-guard-band",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Band above the prompt: warns in red when you work directly on a protected branch such as main or master. Display only, blocks nothing",
   "author": { "name": "BroDesigns" },
   "license": "MIT",

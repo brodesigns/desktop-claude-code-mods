@@ -1,6 +1,6 @@
 {
   "name": "limit-band",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Band above the prompt: 5-hour and 7-day limit with a countdown to the reset, visible only above a threshold",
   "author": { "name": "BroDesigns" },
   "license": "MIT",
