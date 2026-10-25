@@ -20,6 +20,8 @@ const POLL_MS = 10_000
 // Code markers cost a git call and file reads: looked at less often.
 const MARKER_POLL_MS = 30_000
 const FILES_SHOWN = 8
+// A todo.md with hundreds of lines draws the first of them; the rest is one line.
+const ITEMS_SHOWN = 100
 
 let timer: { cancel: () => void } | null = null
 let markerTimer: { cancel: () => void } | null = null
@@ -31,7 +33,7 @@ let isDue = false
 async function locate($: EngineInterface): Promise<{ path: string; name: string } | null> {
   try {
     const root = await $.session.root()
-    const name = findName((await $.fs.list(root)).filter(f => f.kind === 'file').map(f => f.name))
+    const name = findName((await $.fs.list(root)).filter(f => f.kind === 'file' || (f.kind === 'other' && f.isLink)).map(f => f.name))
 
     return name === null ? null : { path: `${root}/${name}`, name }
   } catch {
@@ -156,7 +158,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   // One row per entry, indented by its depth; a heading row whenever the section changes.
   const rows: unknown[] = []
   let section: string | null = null
-  for (const item of open) {
+  for (const item of open.slice(0, ITEMS_SHOWN)) {
     if (item.section !== section) {
       section = item.section
       if (section !== '') rows.push(sectionTitle(ui, `sec-${item.index}`, section))
@@ -180,6 +182,7 @@ export async function view($: EngineInterface, e: RenderInput) {
       {data === null && emptyState(ui, 'todo-missing', '☐', 'No todo.md in the project folder. Create one with lines like "- [ ] task" and this tab fills itself.')}
       {data !== null && open.length === 0 && emptyState(ui, 'todo-clear', '✓', doneCount > 0 ? `All done. ${doneCount} already ticked in the file.` : `${data.name} has no entries yet.`, 'success')}
       {rows as never}
+      {more(ui, 'todo-more', open.length - ITEMS_SHOWN, 'more entries in the file')}
 
       {code !== null && sectionTitle(ui, 'sec-code', 'In code', <Text dimColor size={TYPE.label}>{label(code).replace('☐ ', '')}</Text>)}
       {code !== null &&

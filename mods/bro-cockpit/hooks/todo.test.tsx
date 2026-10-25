@@ -16,7 +16,7 @@ const PANE = {
 const ran = (exitCode: number, stdout: string) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
 // The engine beneath the cockpit: a project at /p with a todo.md and some changed code, a state kept in a Map.
-function world(on: On, files: Record<string, string>, status: string | null, opened: string[][] = []) {
+function world(on: On, files: Record<string, string>, status: string | null, opened: string[][] = [], listing?: { name: string; kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean }[]) {
   const state = new Map<string, unknown>([['cockpitTab', 'todo']])
   on('state.get', (_, e) => ({ value: { value: state.get((e as { key: string }).key), version: 1 } }))
   on('state.set', (_, e) => {
@@ -30,7 +30,7 @@ function world(on: On, files: Record<string, string>, status: string | null, ope
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
-  on('fs.list', () => ({ value: Object.keys(files).filter(f => !f.slice(1).includes('/') === false || true).map(f => ({ name: f.split('/').pop() as string, kind: 'file' as const, size: 1, mtimeMs: 1, isLink: false })) }))
+  on('fs.list', () => ({ value: listing ?? Object.keys(files).map(f => ({ name: f.split('/').pop() as string, kind: 'file' as const, size: 1, mtimeMs: 1, isLink: false })) }))
   on('fs.stat', (_, e) => {
     const text = files[e.path]
     return text === undefined ? { deny: 'ENOENT' } : { value: { kind: 'file' as const, size: text.length, mtimeMs: 1, isLink: false } }
@@ -80,6 +80,36 @@ test('parse: entries with and without boxes, sections, depth, done flag; code fe
   expect(findName(['todo.txt'])).toBeNull()
 })
 
+test('parse: real-world files, CRLF, tabs, marks, bare boxes, links and emoji', () => {
+  const file = '# Plan\r\n- [ ] **Bold** task with [a link](https://x.test) 🚀\r\n\t- [ ] tab indented\r\n- [-] dropped\r\n- [ ]\r\n-\r\n- [~] later\r\n#hashtag is no heading\r\n- [X] big X\r\n'
+  const items = parse(file)
+  expect(items.map(i => [i.text, i.done, i.depth])).toEqual([
+    ['**Bold** task with [a link](https://x.test) 🚀', false, 0],
+    ['tab indented', false, 2],
+    ['dropped', true, 0],
+    ['later', true, 0],
+    ['big X', true, 0],
+  ])
+  expect(items.every(i => i.section === 'Plan')).toBe(true)
+  // A removal keeps the other lines' CRLF endings and the file ends the same way.
+  const cut = remove(file, items[0]!)!
+  expect(cut.lines.length).toBe(2)
+  expect(cut.text.startsWith('# Plan\r\n- [-] dropped\r\n')).toBe(true)
+  expect(cut.text.endsWith('- [X] big X\r\n')).toBe(true)
+  expect(restore(cut.text, cut.index, cut.lines)).toBe(file)
+})
+
+test('remove: the last line without a newline, the only entry, equal lines, a moved line', () => {
+  expect(remove('- [ ] one\n- [ ] two', { index: 1, raw: '- [ ] two' })).toEqual({ text: '- [ ] one', index: 1, lines: ['- [ ] two'] })
+  expect(remove('- [ ] only', { index: 0, raw: '- [ ] only' })!.text).toBe('')
+  // Equal lines: the one at the given index goes, not the first.
+  expect(remove('- [ ] same\n- [ ] same\n', { index: 1, raw: '- [ ] same' })!.text).toBe('- [ ] same\n')
+  // The file grew above: the text is found again, the right one goes.
+  expect(remove('new\nnew\n- [ ] a\n- [ ] b\n', { index: 1, raw: '- [ ] b' })!.text).toBe('new\nnew\n- [ ] a\n')
+  // A sub-entry takes only what is deeper than itself.
+  expect(remove('- [ ] a\n  - [ ] b\n    - [ ] c\n  - [ ] d\n', { index: 1, raw: '  - [ ] b' })!.text).toBe('- [ ] a\n  - [ ] d\n')
+})
+
 test('remove cuts the entry with its sub-lines; a changed file never loses another line', () => {
   const first = parse(FILE)[0]!
   const cut = remove(FILE, first)!
@@ -120,6 +150,40 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await after.unmount()
   })
 }
+
+test('a long todo.md draws the first entries and says how many more', async ($, on) => {
+  const many = Array.from({ length: 130 }, (_, i) => `- [ ] task ${i + 1}`).join('\n')
+  world(on, { '/p/todo.md': many }, '')
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /task 100$/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /task 101$/ })) == null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /and 30 more entries in the file/ })) != null).toBe(true)
+  await ui.unmount()
+})
+
+test('ticking an entry that someone else already removed says so and writes nothing', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] a\n- [ ] b\n' }
+  world(on, files, '')
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  files['/p/todo.md'] = '- [ ] b\n'
+  await ui.press({ key: 'item-0' })
+  expect(files['/p/todo.md']).toBe('- [ ] b\n')
+  await ui.unmount()
+  const after = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await after.find({ type: 'Text', text: /no longer in todo.md/ })) != null).toBe(true)
+  await after.unmount()
+})
+
+test('a symlinked todo.md is found', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] linked\n' }
+  world(on, files, '', [], [{ name: 'todo.md', kind: 'other', size: 0, mtimeMs: 0, isLink: true }])
+  await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /☐ linked/ })) != null).toBe(true)
+  await ui.unmount()
+})
 
 test('no todo.md: the tab says so', async ($, on) => {
   world(on, { '/p/README.md': '# x' }, '')

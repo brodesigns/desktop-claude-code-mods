@@ -3,8 +3,8 @@ import type { TodoItem } from '../types'
 // Pure parsing and editing of a todo.md; no `$`, no state.
 
 // `- [ ] text`, `* [x] text`, `1. [ ] text` and plain bullets `- text`. A line with a checkbox is an entry,
-// a plain bullet too (a todo.md often has no boxes); `[x]` marks it done.
-const ENTRY = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(\S.*)$/
+// a plain bullet too (a todo.md often has no boxes); a box with any mark but a space is done.
+const ENTRY = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[(.)\]\s*)?(\S.*)?$/
 const HEADING = /^#{1,6}\s+(.*?)\s*#*\s*$/
 
 const indentOf = (line: string) => (line.match(/^\s*/)?.[0] ?? '').replace(/\t/g, '    ').length
@@ -24,8 +24,10 @@ export const parse = (text: string): TodoItem[] => {
       return
     }
     const m = line.match(ENTRY)
-    if (m === null) return
-    out.push({ index, raw: line, text: (m[3] ?? '').trim(), depth: Math.min(3, Math.floor(indentOf(line) / 2)), section, done: m[2] === 'x' || m[2] === 'X' })
+    // A bare `- [ ]` or `-` has no text: nothing to show.
+    if (m === null || (m[3] ?? '').trim() === '') return
+    // `[ ]` is open; any other mark (`x`, `X`, `-`, `~`) is a finished or dropped entry.
+    out.push({ index, raw: line, text: (m[3] ?? '').trim(), depth: Math.min(3, Math.floor(indentOf(line) / 2)), section, done: m[2] !== undefined && m[2] !== ' ' })
   })
 
   return out
