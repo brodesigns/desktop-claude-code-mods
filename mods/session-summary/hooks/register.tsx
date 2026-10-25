@@ -14,9 +14,14 @@ const lastAsk = atom({ plugin: 'session-summary', key: 'lastAsk' } as const, '')
 const lastFiles = atom({ plugin: 'session-summary', key: 'lastFiles' } as const, [])
 const isBusy = atom({ plugin: 'session-summary', key: 'isBusy' } as const, false)
 const told = atom({ plugin: 'session-summary', key: 'summaryNote' } as const, null)
+// The pane's switch for the automatic updates: null until the person (or a saved choice) sets it, then the setting `auto` applies.
+const autoOn = atom({ plugin: 'session-summary', key: 'autoOn' } as const, null)
+
+const STORE_KEY = 'session-summary:auto'
 
 // From userConfig; a reload brings a changed value.
 let model = 'haiku'
+// The setting `auto`: what holds while no choice was made in the pane.
 let isAuto = true
 // One update at a time; a turn that ends while one runs makes it go round once more.
 let isRunning = false
@@ -71,6 +76,23 @@ async function summarize($: EngineInterface) {
   }
 }
 
+// The pane's choice wins over the setting; it is kept across sessions.
+async function isAutomatic($: EngineInterface): Promise<boolean> {
+  return (await read($, autoOn)) ?? isAuto
+}
+
+async function toggleAuto($: EngineInterface) {
+  const next = !(await isAutomatic($))
+  await update($, autoOn, () => next)
+  try {
+    await $.store.set(STORE_KEY, next)
+  } catch {
+    // The choice holds for this session even when it cannot be kept.
+  }
+  // Switching on with turns waiting: catch up now instead of at the next answer.
+  if (next && (await read($, waiting)).length > 0) void summarize($)
+}
+
 // A finished turn of the main thread becomes one digest.
 async function recordTurn($: EngineInterface, answer: string) {
   const ask = await read($, lastAsk)
@@ -79,7 +101,7 @@ async function recordTurn($: EngineInterface, answer: string) {
   await update($, waiting, list => [...list, digest].slice(-WAITING_MAX))
   await update($, lastAsk, () => '')
   await update($, lastFiles, () => [])
-  if (isAuto) void summarize($)
+  if (await isAutomatic($)) void summarize($)
 }
 
 export const register: Register = (on, options) => {
@@ -89,6 +111,12 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'summary', description: 'Open the pane with the short summary of this session' })
+    try {
+      const saved = await $.store.get(STORE_KEY)
+      if (typeof saved === 'boolean') await update($, autoOn, () => saved)
+    } catch {
+      // No saved choice: the setting applies.
+    }
     void $.ui.open({ id: PANE, title: 'Summary' })
 
     return next(e)
@@ -142,6 +170,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   const queue = await read($, waiting)
   const busy = await read($, isBusy)
   const message = await read($, told)
+  const automatic = (await read($, autoOn)) ?? isAuto
 
   return (
     <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
@@ -153,6 +182,9 @@ export async function view($: EngineInterface, e: RenderInput) {
           <Text dimColor size={TYPE.label} wrap="truncate">
             {busy ? 'updating …' : data === null ? model : `${data.turns} ${data.turns === 1 ? 'turn' : 'turns'} · ${model} · ${tokensWord(data.tokens)} tokens`}
           </Text>
+          <Button key="auto" plain onPress={() => toggleAuto($)}>
+            <Text size={TYPE.label} color={automatic ? '#39639E' : undefined} dimColor={!automatic} weight="semibold">{automatic ? '● auto' : '○ auto off'}</Text>
+          </Button>
           {(queue.length > 0 || data === null) && !busy && (
             <Button key="update" plain onPress={() => pressUpdate($)}>
               <Text size={TYPE.label} color="#39639E" weight="semibold">↻ update</Text>
@@ -164,7 +196,7 @@ export async function view($: EngineInterface, e: RenderInput) {
       {message !== null && note(ui, 'note', message.text, message.tone)}
 
       {data === null
-        ? emptyState(ui, 'empty', '≡', isAuto ? 'Nothing yet. The summary appears after the first answer.' : 'Nothing yet. Press "↻ update" after a few turns.')
+        ? emptyState(ui, 'empty', '≡', automatic ? 'Nothing yet. The summary appears after the first answer.' : 'Automatic updates are off. Switch them on above or press "↻ update" after a few turns.')
         : bullets(data.text).map((line, i) => (
             <Box key={`b-${i}`} gap={SPACE.base} minWidth={0} overflow="hidden">
               <Box flexShrink={0}>
@@ -176,7 +208,7 @@ export async function view($: EngineInterface, e: RenderInput) {
             </Box>
           ))}
       {data !== null && queue.length > 0 && !busy && (
-        <Text dimColor size={TYPE.label}>{`${queue.length} newer ${queue.length === 1 ? 'turn' : 'turns'} not included yet`}</Text>
+        <Text dimColor size={TYPE.label}>{`${queue.length} newer ${queue.length === 1 ? 'turn' : 'turns'} not included yet${automatic ? '' : ' (auto is off)'}`}</Text>
       )}
     </Box>
   )

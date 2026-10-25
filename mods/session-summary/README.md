@@ -3,7 +3,8 @@
 A pane with a very short running summary of what happened in this session, written by the cheapest model (Haiku). **This is the one mod that spends model tokens**, a small amount.
 
 - **Pane:** two to five bullet points, at most 12 words each, plus a line with the number of turns covered, the model and the tokens all updates cost together. `↻ update` appears when there are turns the summary does not cover yet, or no summary at all.
-- **Updates:** after every answer of the main thread. The model does not see the transcript. It gets the summary so far plus a digest of the new turn (what you asked, which files were written, the first 480 characters of the answer), about 300 input tokens and at most 220 output tokens per update, with low effort. Subagent turns are ignored.
+- **Switch:** `● auto` / `○ auto off` in the pane's head turns the automatic updates on and off, and the choice is kept across sessions. Off, nothing is sent to the model; turns are still noted, so `↻ update` (or switching on again) catches up. Without a choice, the setting `auto` applies.
+- **Updates:** after every answer of the main thread (when auto is on). The model does not see the transcript. It gets the summary so far plus a digest of the new turn (what you asked, which files were written, the first 480 characters of the answer), about 300 input tokens and at most 220 output tokens per update, with low effort. Subagent turns are ignored.
 - **Secrets:** everything is redacted for known key patterns before it is sent or kept. It goes through the session's own client and credentials, like any model call of the session.
 - **Failure:** a failed call (rate limit, overload, timeout after 30 s) keeps the digests and says so in the pane; `↻ update` tries again, the next turn does too.
 
@@ -14,7 +15,7 @@ A pane with a very short running summary of what happened in this session, writt
 ## Settings
 
 - `model` (default `haiku`): an alias or a model id.
-- `auto` (default on): off, and the summary only updates on `↻ update`.
+- `auto` (default on): the start value of the switch in the pane. A choice made in the pane wins.
 
 ## Limits
 

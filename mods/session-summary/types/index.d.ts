@@ -13,6 +13,8 @@ declare module 'claude-code' {
       lastFiles: string[]
       isBusy: boolean
       summaryNote: SummaryNote | null
+      // The pane's switch for automatic updates; null: the setting `auto` applies.
+      autoOn: boolean | null
     }
   }
 }
