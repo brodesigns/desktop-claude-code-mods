@@ -1,7 +1,7 @@
 {
   "name": "session-summary",
-  "version": "0.1.3",
-  "description": "Pane with a very short running summary of what happened in this session, written after each turn by the cheapest model (Haiku) from a small digest, not from the whole transcript",
+  "version": "0.1.4",
+  "description": "Pane with a very short running summary of what happened in this session, written in cheap batches by the cheapest model (Haiku) from a small digest, only while the pane is open",
   "author": { "name": "BroDesigns" },
   "license": "MIT",
   "types": "./types/index.d.ts",

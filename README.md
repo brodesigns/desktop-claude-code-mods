@@ -161,7 +161,7 @@ Add this repository as a marketplace (plus button next to the prompt, Plugins, A
 
 ### Do these Claude Code mods cost tokens?
 
-Almost never. They add no prompt text, no tools for the model and no subagents. Only when a guard blocks a call does Claude read the short block message. One exception: sending a prompt from `prompt-library` submits it as if you typed it, which costs normal tokens. The other exception is `session-summary`: after each answer it makes one small Haiku call (about 300 input and at most 220 output tokens) and can be set to update only on a button press (`auto` off).
+Almost never. They add no prompt text, no tools for the model and no subagents. Only when a guard blocks a call does Claude read the short block message. One exception: sending a prompt from `prompt-library` submits it as if you typed it, which costs normal tokens. The other exception is `session-summary`: it makes a small Haiku call (a few hundred input tokens, at most 120 output tokens) for every three worthwhile turns, only while its pane is open, and can be set to update only on a button press (`auto` off).
 
 ### Does it work in the terminal, not only in the desktop app?
 

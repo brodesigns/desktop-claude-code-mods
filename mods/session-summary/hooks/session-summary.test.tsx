@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { buildPrompt, cleanLanguage, clip, digestTurn, parseSummary, SYSTEM, systemFor } from './digest'
+import { buildPrompt, cleanLanguage, clip, digestTurn, isReady, isTrivial, MAX_TOKENS, parseSummary, SYSTEM, systemFor } from './digest'
 import { redact } from './keys'
 
 const PANE = {
@@ -20,7 +20,7 @@ const stored: { value: unknown } = { value: undefined }
 // ... and for the language choice.
 const storedLang: { value: unknown } = { value: undefined }
 // How often the pane was asked to open, and an optional gate that holds the model call until released.
-const state: { opened: number; gate: Promise<void> | null } = { opened: 0, gate: null }
+const state: { opened: number; gate: Promise<void> | null; placed: boolean } = { opened: 0, gate: null, placed: true }
 
 type Reply = string | { error: 'invalid_request' | 'authentication_failed'; status: number }
 
@@ -29,12 +29,14 @@ function world(on: OnLike, replies: Reply[], seen: { model: string; prompt: stri
   storedLang.value = undefined
   state.opened = 0
   state.gate = null
+  state.placed = true
   const clock = mock.clock(on)
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.open', () => {
     state.opened += 1
     return { value: { isPlaced: true } }
   })
+  on('ui.panes', () => ({ value: [{ id: 'session-summary', title: 'Summary', isShown: true, isFocused: false, isPlaced: state.placed }] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('prompt.submit', (_, e) => e)
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -58,17 +60,19 @@ function world(on: OnLike, replies: Reply[], seen: { model: string; prompt: stri
 
 // The update runs unawaited after the turn ends; advancing the mocked clock lets it settle.
 async function finish($: { turn: { complete: (a: never) => Promise<unknown> } }, clock: { advance: (ms: number) => Promise<void> }, answer: string) {
-  await $.turn.complete({ answer, durationMs: 10, isAborted: false, turnId: 't', reason: 'answer' } as never)
+  // A short answer without a file is a trivial turn and skipped; the tests mean real turns, so it is made long enough.
+  const full = answer.length < 80 ? `${answer} ${'with some more detail '.repeat(4)}` : answer
+  await $.turn.complete({ answer: full, durationMs: 10, isAborted: false, turnId: 't', reason: 'answer' } as never)
   await clock.advance(0)
 }
 
-test('digests are short, redacted text; the reply becomes at most five clean bullets', () => {
+test('digests are short, redacted text; the reply becomes at most four clean bullets', () => {
   expect(clip('  a\n\n b   c ', 10)).toBe('a b c')
   expect(clip('x'.repeat(50), 10)).toBe('xxxxxxxxx…')
   const digest = digestTurn('Fix the login', ['a.ts', 'b.ts'], 'Done, tests pass.')
   expect(digest).toBe('Asked: Fix the login\nWrote: a.ts, b.ts\nAnswer: Done, tests pass.')
   expect(buildPrompt('', [digest])).toContain('(none yet)')
-  expect(parseSummary('Here:\n- one\n* two\n3. three\n\n- four\n- five\n- six')).toBe('- Here:\n- one\n- two\n- three\n- four')
+  expect(parseSummary('Here:\n- one\n* two\n3. three\n\n- four\n- five\n- six')).toBe('- Here:\n- one\n- two\n- three')
   const token = 'gh' + 'p_' + 'a'.repeat(36)
   expect(redact(`key ${token}`)).not.toContain(token)
 })
@@ -84,7 +88,7 @@ test('after a turn the cheap model gets a small digest, the pane shows the bulle
 
   expect(seen.length).toBe(1)
   expect(seen[0]?.model).toBe('haiku')
-  expect(seen[0]?.maxTokens).toBe(220)
+  expect(seen[0]?.maxTokens).toBe(120)
   expect(seen[0]?.prompt).toContain('Asked: Fix the login redirect')
   expect(seen[0]?.prompt).toContain('Wrote: login.ts')
 
@@ -104,6 +108,9 @@ test('the next turn sends the summary so far plus only the new digest', async ($
   await finish($ as never, clock, 'answer one')
   await $.prompt.submit({ text: 'two' } as never)
   await finish($ as never, clock, 'answer two')
+  // The second turn waits for a batch or a quiet minute and a half.
+  expect(seen.length).toBe(1)
+  await clock.advance(90_000)
 
   expect(seen[1]?.prompt).toContain('- First')
   expect(seen[1]?.prompt).toContain('Asked: two')
@@ -206,6 +213,7 @@ test('a permanent API error pauses the automatic calls; update or switching auto
   expect(seen.length).toBe(2)
   await $.prompt.submit({ text: 'three' } as never)
   await finish($ as never, clock, 'answer three')
+  await clock.advance(90_000)
   expect(seen.length).toBe(3)
   await ui.unmount()
 })
@@ -306,4 +314,83 @@ test('a saved language choice holds in a new session and wins over the setting',
   await $.prompt.submit({ text: 'hello' } as never)
   await finish($ as never, clock, 'done')
   expect(seen[0]?.system).toContain('Write the summary in French.')
+})
+
+test('batching: the first summary does not wait, then calls wait for three turns or a quiet minute and a half', async ($, on) => {
+  const seen: { model: string; prompt: string }[] = []
+  const clock = world(on, ['- A', '- A\n- B', '- A\n- B\n- C'], seen)
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+  const turn = async (text: string) => {
+    await $.prompt.submit({ text } as never)
+    await finish($ as never, clock, `answer ${text}`)
+  }
+  await turn('one')
+  expect(seen.length).toBe(1)
+  await turn('two')
+  await turn('three')
+  expect(seen.length).toBe(1)
+  await turn('four')
+  // Three are waiting: one call for all of them.
+  expect(seen.length).toBe(2)
+  expect(seen[1]?.prompt).toContain('Asked: two')
+  expect(seen[1]?.prompt).toContain('Asked: four')
+  // One more turn alone: the quiet wait.
+  await turn('five')
+  expect(seen.length).toBe(2)
+  await clock.advance(89_000)
+  expect(seen.length).toBe(2)
+  await clock.advance(2_000)
+  expect(seen.length).toBe(3)
+})
+
+test('a closed pane costs nothing; opening it sends everything that waited in one call', async ($, on) => {
+  const seen: { model: string; prompt: string }[] = []
+  const clock = world(on, ['- Caught up'], seen)
+  state.placed = false
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+  for (const t of ['one', 'two', 'three']) {
+    await $.prompt.submit({ text: t } as never)
+    await finish($ as never, clock, `answer ${t}`)
+  }
+  await clock.advance(120_000)
+  expect(seen.length).toBe(0)
+
+  state.placed = true
+  await clock.advance(10_000)
+  expect(seen.length).toBe(1)
+  expect(seen[0]?.prompt).toContain('Asked: one')
+  expect(seen[0]?.prompt).toContain('Asked: three')
+})
+
+test('trivial turns are skipped, short digests keep the answer short when files were written', async ($, on) => {
+  const seen: { model: string; prompt: string }[] = []
+  const clock = world(on, ['- Edited'], seen)
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+  // "ok" and a short answer, no file: nothing is queued or sent.
+  await $.prompt.submit({ text: 'ok' } as never)
+  await $.turn.complete({ answer: 'Sure, done.', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as never)
+  await clock.advance(0)
+  expect(seen.length).toBe(0)
+
+  await $.prompt.submit({ text: 'Fix it' } as never)
+  await $.tool.call({ tool: 'Edit', file_path: '/p/a.ts', old_string: 'a', new_string: 'b', replace_all: false })
+  await $.turn.complete({ answer: 'x'.repeat(500), durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as never)
+  await clock.advance(0)
+  expect(seen.length).toBe(1)
+  expect(seen[0]?.prompt).not.toContain('Asked: ok')
+  expect(seen[0]?.prompt).toContain('Wrote: a.ts')
+  // With a file the answer is cut to 120 characters, not 240.
+  expect(seen[0]?.prompt.match(/x+/)?.[0].length).toBeLessThanOrEqual(120)
+})
+
+test('batch and triviality rules', () => {
+  expect(isReady(0, false, 1e9)).toBe(false)
+  expect(isReady(1, false, 0)).toBe(true)
+  expect(isReady(1, true, 0)).toBe(false)
+  expect(isReady(3, true, 0)).toBe(true)
+  expect(isReady(1, true, 90_000)).toBe(true)
+  expect(isTrivial([], 'short')).toBe(true)
+  expect(isTrivial(['a.ts'], 'short')).toBe(false)
+  expect(isTrivial([], 'x'.repeat(80))).toBe(false)
+  expect(MAX_TOKENS).toBe(120)
 })

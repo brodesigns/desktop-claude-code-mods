@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
-import { ASK_MAX, bullets, buildPrompt, cleanLanguage, clip, digestTurn, LANGUAGES, parseSummary, RESTATE_SYSTEM, systemFor, tokensWord, WAITING_MAX } from './digest'
+import { ASK_MAX, bullets, buildPrompt, cleanLanguage, clip, digestTurn, isReady, isTrivial, LANGUAGES, MAX_TOKENS, parseSummary, RESTATE_SYSTEM, systemFor, tokensWord, WAITING_MAX } from './digest'
 import { redact } from './keys'
 import { isNarrow } from './layout'
 import { emptyState, note, SPACE, TYPE } from './style'
@@ -36,6 +36,9 @@ let isDue = false
 let isPaused = false
 // Numbers the digests, so a call removes exactly the ones it covered even when the list was trimmed meanwhile.
 let turnNo = 0
+// When the last worthwhile turn ended (clock time): the idle wait before a batch is sent counts from it.
+let lastTurnAt = 0
+let timer: { cancel: () => void } | null = null
 
 const PERMANENT = ['invalid_request', 'authentication_failed', 'model_not_found']
 
@@ -70,7 +73,7 @@ async function summarize($: EngineInterface) {
         model,
         system: systemFor(await currentLanguage($)),
         prompt: buildPrompt(before?.text ?? '', digests.map(d => d.text)),
-        maxTokens: 220,
+        maxTokens: MAX_TOKENS,
         effort: 'low',
         timeoutMs: 30_000,
       })
@@ -131,7 +134,7 @@ async function restate($: EngineInterface, language: string) {
   isRunning = true
   try {
     await update($, isBusy, () => true)
-    const reply = await $.model.complete({ model, system: RESTATE_SYSTEM(language), prompt: `<summary>\n${current.text.replace(/[<>]/g, '')}\n</summary>`, maxTokens: 220, effort: 'low', timeoutMs: 30_000 })
+    const reply = await $.model.complete({ model, system: RESTATE_SYSTEM(language), prompt: `<summary>\n${current.text.replace(/[<>]/g, '')}\n</summary>`, maxTokens: MAX_TOKENS, effort: 'low', timeoutMs: 30_000 })
     const text = reply.isAnswered ? parseSummary(redact(reply.text)) : ''
     if (reply.isAnswered && text !== '') {
       const spent = reply.usage.input_tokens + reply.usage.output_tokens
@@ -164,17 +167,39 @@ async function toggleAuto($: EngineInterface) {
   if (next && (await read($, waiting)).length > 0) void summarize($)
 }
 
-// A finished turn of the main thread becomes one digest.
+// Whether the pane is placed; an unreadable answer counts as "yes" so a failing check never silences the summary.
+async function isPaneUp($: EngineInterface) {
+  try {
+    return (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
+  } catch {
+    return true
+  }
+}
+
+// The automatic call, only when it pays: auto on, not paused, the pane open (a closed pane needs no summary, the
+// waiting turns are caught up in one call when it opens), and enough waiting (a batch, or a quiet minute and a half).
+async function maybeSummarize($: EngineInterface) {
+  if (isPaused || !(await isAutomatic($))) return
+  const queue = await read($, waiting)
+  if (queue.length === 0) return
+  const hasSummary = (await read($, summary)) !== null
+  if (!isReady(queue.length, hasSummary, (await $.clock.now()) - lastTurnAt)) return
+  if (await isPaneUp($)) void summarize($)
+}
+
+// A finished turn of the main thread becomes one digest, unless it adds nothing.
 async function recordTurn($: EngineInterface, answer: string) {
   const ask = await read($, lastAsk)
   const files = await read($, lastFiles)
+  await update($, lastAsk, () => '')
+  await update($, lastFiles, () => [])
+  if (isTrivial(files, answer)) return
   const digest = digestTurn(ask, files, redact(answer))
   turnNo += 1
   const n = turnNo
+  lastTurnAt = await $.clock.now()
   await update($, waiting, list => [...list, { n, text: digest }].slice(-WAITING_MAX))
-  await update($, lastAsk, () => '')
-  await update($, lastFiles, () => [])
-  if (!isPaused && (await isAutomatic($))) void summarize($)
+  await maybeSummarize($)
 }
 
 export const register: Register = (on, options) => {
@@ -195,6 +220,9 @@ export const register: Register = (on, options) => {
     }
     // Opens by itself only while auto is on; `/summary` opens it any time.
     if (await isAutomatic($)) void $.ui.open({ id: PANE, title: 'Summary' })
+    // Waiting turns are sent in batches: this tick sends what a quiet minute and a half or a newly opened pane left over.
+    timer?.cancel()
+    timer = $.clock.every(10_000, () => void maybeSummarize($))
 
     return next(e)
   })
