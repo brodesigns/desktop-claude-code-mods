@@ -145,3 +145,24 @@ test('the band stays away when it is switched off', { options: { show_gitband: f
     await ui.unmount()
   }
 })
+
+// Every tab but the overview has a way back to it.
+test('every tab has a back button to the overview, the overview has none', async ($, on) => {
+  const state = new Map<string, unknown>([['cockpitTab', 'files']])
+  on('state.get', (_, e) => ({ value: { value: state.get((e as { key: string }).key), version: 1 } }))
+  on('state.set', (_, e) => {
+    state.set((e as { key: string }).key, (e as unknown as { value: unknown }).value)
+    return { value: { isSet: true as const, version: 2 } }
+  })
+  on('clock.now', () => ({ value: 1 }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Button', text: /Overview/ })) != null).toBe(true)
+  await ui.press({ key: 'back-to-overview' })
+  expect(state.get('cockpitTab')).toBe('home')
+  await ui.unmount()
+
+  const home = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await home.find({ type: 'Button', text: /^‹ Overview$/ })) == null).toBe(true)
+  await home.unmount()
+})

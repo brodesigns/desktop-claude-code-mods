@@ -148,6 +148,13 @@ export const register: Register = (on, options) => {
             ))}
           </Box>
         )}
+        {current !== 'home' && shown('home') && (
+          <Box key="back" alignSelf="flex-start">
+            <Button key="back-to-overview" plain onPress={() => update($, tab, () => 'home')}>
+              <Text size={TYPE.label} color="#39639E" weight="semibold">‹ Overview</Text>
+            </Button>
+          </Box>
+        )}
         {await safe($, e, current, id => void (shown(id) && update($, tab, () => id)), shown)}
       </Box>
     )
