@@ -51,6 +51,11 @@
       "description": "Code snippets per project: save with /snippet, pane with language, preview, insert and copy; secrets are redacted"
     },
     {
+      "name": "session-summary",
+      "source": "./mods/session-summary",
+      "description": "Pane with a very short running summary of the session, written after each turn by the cheapest model (Haiku) from a small digest. The one mod that spends a little model tokens"
+    },
+    {
       "name": "kanban-pane",
       "source": "./mods/kanban-pane",
       "description": "Small kanban board per project with open, in progress and done columns: add cards by command, move and delete them in the pane"

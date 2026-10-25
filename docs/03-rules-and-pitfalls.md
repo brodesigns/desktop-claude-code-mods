@@ -14,7 +14,7 @@ Everything here happened while building the mods in this repo. `validate` report
 
 ## Behavior
 
-- **No token cost:** only display and blocking hooks. No `prompt.compose`, no `$.tool.register`, no `$.agent.register`, no `CLAUDE.md` in the mod. Hooks that only block cost the short message, and only when they block.
+- **No token cost:** only display and blocking hooks. No `prompt.compose`, no `$.tool.register`, no `$.agent.register`, no `CLAUDE.md` in the mod. Hooks that only block cost the short message, and only when they block. The one exception is `session-summary`: `$.model.complete` with `haiku`, a digest of a few hundred characters instead of the transcript, `maxTokens` 220, `effort: 'low'`, a `timeoutMs`, redacted input, and a setting to turn the automatic call off.
 - **Claude Code does not seem to load a `CLAUDE.md` inside a plugin as context.** Prompt mods that rely on it probably do nothing. Not tested here.
 - **Blocking without an endless loop:** a guard that blocks only on style or taste (never on secrets) remembers `path + content` of the denied calls and lets the identical retry through. Security guards block every time.
 - **`agent.spawn`:** `await next(e)` returns `{ agentId }` after the start. Tool calls and `turn.complete` of the subagent carry the same `agentId`.

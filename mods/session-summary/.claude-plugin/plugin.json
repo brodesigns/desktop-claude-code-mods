@@ -1,0 +1,22 @@
+{
+  "name": "session-summary",
+  "version": "0.1.0",
+  "description": "Pane with a very short running summary of what happened in this session, written after each turn by the cheapest model (Haiku) from a small digest, not from the whole transcript",
+  "author": { "name": "BroDesigns" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "model": {
+      "type": "string",
+      "title": "Model",
+      "description": "Model that writes the summary: an alias or a model id. The cheapest one is haiku.",
+      "default": "haiku"
+    },
+    "auto": {
+      "type": "boolean",
+      "title": "Update after every turn",
+      "description": "Off: the summary only updates when you press the button in the pane. Every update costs a small Haiku call.",
+      "default": true
+    }
+  }
+}

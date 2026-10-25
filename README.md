@@ -3,12 +3,12 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-mods_(early_access)-D97757)
 ![Tested with](https://img.shields.io/badge/tested_with-Claude_Code_2.1.308-blue)
-![Zero model tokens](https://img.shields.io/badge/model_tokens-zero-success)
-![Mods](https://img.shields.io/badge/mods-12-informational)
+![Model tokens](https://img.shields.io/badge/model_tokens-one_mod_only-success)
+![Mods](https://img.shields.io/badge/mods-13-informational)
 
 **Plugins (mods) for Claude Code in the Claude desktop app.** Add a live session dashboard pane next to the chat, small status bands above the prompt (git, branch warning, environment, usage limits, deadline, daily totals), panes for prompts, snippets, a kanban board, Bash logs and dependencies, and a hook that stops Claude from writing API keys and passwords into files or shell commands. Mods run in the Claude Code plugin engine, not in the model, so they cost no extra tokens.
 
-12 mods, one marketplace. Every mod is its own plugin: install only the ones you want.
+13 mods, one marketplace. Every mod is its own plugin: install only the ones you want.
 
 ### Dashboard
 
@@ -40,6 +40,7 @@ Bands appear only when there is something to show, and they stack.
 |---|---|
 | [`prompt-library`](mods/prompt-library) | Light list of saved prompts for all projects or just this one, with placeholders, inserted into the prompt box with `/p` |
 | [`snippet-pane`](mods/snippet-pane) | Light list of code snippets per project, one line each, with insert, copy and delete; secrets are redacted |
+| [`session-summary`](mods/session-summary) | Very short running summary of the session, written after each turn by Haiku from a small digest. The one mod that spends (few) model tokens |
 | [`kanban-pane`](mods/kanban-pane) | Small kanban board per project with open, in progress and done columns |
 | [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search |
 | [`dependency-pane`](mods/dependency-pane) | Dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`, checked with `npm outdated` at the push of a button |
@@ -104,7 +105,7 @@ Screenshots are coming soon.
 
 ## Install Claude Code mods
 
-The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 12 mods.
+The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 13 mods.
 
 **Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app.
 
@@ -115,7 +116,7 @@ claude plugin marketplace add brodesigns/desktop-claude-code-mods
 claude plugin install <mod>@desktop-claude-code-mods
 ```
 
-Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `kanban-pane`, `log-viewer`, `dependency-pane`.
+Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `session-summary`, `kanban-pane`, `log-viewer`, `dependency-pane`.
 
 Example: `claude plugin install bro-cockpit@desktop-claude-code-mods`.
 
@@ -160,7 +161,7 @@ Add this repository as a marketplace (plus button next to the prompt, Plugins, A
 
 ### Do these Claude Code mods cost tokens?
 
-No. They add no prompt text, no tools for the model and no subagents. Only when a guard blocks a call does Claude read the short block message. One exception: sending a prompt from `prompt-library` submits it as if you typed it, which costs normal tokens.
+Almost never. They add no prompt text, no tools for the model and no subagents. Only when a guard blocks a call does Claude read the short block message. One exception: sending a prompt from `prompt-library` submits it as if you typed it, which costs normal tokens. The other exception is `session-summary`: after each answer it makes one small Haiku call (about 300 input and at most 220 output tokens) and can be set to update only on a button press (`auto` off).
 
 ### Does it work in the terminal, not only in the desktop app?
 

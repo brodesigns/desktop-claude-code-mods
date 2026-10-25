@@ -30,6 +30,7 @@ First public version, tested with Claude Code 2.1.308.
 
 - `prompt-library`: saved prompts with search and placeholders, inserted with `/p`.
 - `snippet-pane`: code snippets per project, secrets redacted.
+- `session-summary`: short running summary of the session in a pane, written after each turn by Haiku from a small digest.
 - `kanban-pane`: small board per project with open, in progress and done.
 - `log-viewer`: output of the latest Bash calls with filter and search.
 - `dependency-pane`: project dependencies, checked with `npm outdated` on request.
