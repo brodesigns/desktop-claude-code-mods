@@ -51,11 +51,6 @@
       "description": "Code snippets per project: save with /snippet, pane with language, preview, insert and copy; secrets are redacted"
     },
     {
-      "name": "todo-md-pane",
-      "source": "./mods/todo-md-pane",
-      "description": "Todo pane: open items of the project's todo.md as a checklist (ticking removes the line, with undo) plus TODO, FIXME, HACK and XXX markers in changed code, each file one click away"
-    },
-    {
       "name": "kanban-pane",
       "source": "./mods/kanban-pane",
       "description": "Small kanban board per project with open, in progress and done columns: add cards by command, move and delete them in the pane"

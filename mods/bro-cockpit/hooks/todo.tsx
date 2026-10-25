@@ -1,38 +1,31 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderInput } from 'claude-code'
+import type { EngineInterface, RenderInput } from 'claude-code'
 
 import type { TodoItem, TodoList, TodoNote } from '../types'
+import { refreshCounts } from './counts'
 import { isNarrow } from './layout'
 import { configure, isTrackingSession, scanMarkers, trackFile } from './markers'
+import { label } from './markerscan'
 import { openInProject } from './open'
-import { label } from './scan'
-import { actions, emptyState, legend, note, sectionTitle, SPACE, TYPE } from './style'
-import { findName, parse, remove, restore } from './todo'
+import { setIfChanged } from './state'
+import { emptyState, legend, more, sectionTitle, SPACE, tile, tiles, toolbar, TYPE } from './style'
+import { findName, parse, remove, restore } from './todomd'
 
-const PANE = 'todo-md-pane'
-const POLL_MS = 5_000
+const list = atom({ plugin: 'bro-cockpit', key: 'todoList' } as const, null)
+const told = atom({ plugin: 'bro-cockpit', key: 'todoNote' } as const, null)
+const undoable = atom({ plugin: 'bro-cockpit', key: 'todoUndo' } as const, null)
+const markers = atom({ plugin: 'bro-cockpit', key: 'todoMarkers' } as const, null)
+
+const POLL_MS = 10_000
 // Code markers cost a git call and file reads: looked at less often.
-const MARKER_POLL_MS = 20_000
-const MARKER_FILES_SHOWN = 8
-
-const list = atom({ plugin: 'todo-md-pane', key: 'todoList' } as const, null)
-const told = atom({ plugin: 'todo-md-pane', key: 'todoNote' } as const, null)
-const undoable = atom({ plugin: 'todo-md-pane', key: 'todoUndo' } as const, null)
-const markers = atom({ plugin: 'todo-md-pane', key: 'todoMarkers' } as const, null)
+const MARKER_POLL_MS = 30_000
+const FILES_SHOWN = 8
 
 let timer: { cancel: () => void } | null = null
 let markerTimer: { cancel: () => void } | null = null
-let busy = false
+let isBusy = false
 let isScanning = false
 let isDue = false
-
-// Writes only when the value differs (JSON compare); every write redraws the pane.
-async function setIfChanged<T>(get: () => Promise<T>, set: (value: T) => Promise<unknown>, value: T): Promise<boolean> {
-  if (JSON.stringify(await get()) === JSON.stringify(value)) return false
-  await set(value)
-
-  return true
-}
 
 // The todo.md in the project root, or null. A missing folder or file reads as "none".
 async function locate($: EngineInterface): Promise<{ path: string; name: string } | null> {
@@ -47,9 +40,9 @@ async function locate($: EngineInterface): Promise<{ path: string; name: string 
 }
 
 // One look at the file. Never throws, never stacks: a look still running makes the next one a no-op.
-async function refresh($: EngineInterface) {
-  if (busy) return
-  busy = true
+export async function refreshTodo($: EngineInterface) {
+  if (isBusy) return
+  isBusy = true
   try {
     const found = await locate($)
     let fresh: TodoList | null = null
@@ -58,10 +51,11 @@ async function refresh($: EngineInterface) {
       fresh = { ...found, items: typeof text === 'string' ? parse(text) : [] }
     }
     await setIfChanged(() => read($, list), v => update($, list, () => v), fresh)
+    await refreshCounts($)
   } catch {
     // Unreadable this time; the next look tries again.
   } finally {
-    busy = false
+    isBusy = false
   }
 }
 
@@ -77,6 +71,7 @@ async function refreshMarkers($: EngineInterface) {
       isDue = false
       const fresh = await scanMarkers($)
       await setIfChanged(() => read($, markers), v => update($, markers, () => v), fresh)
+      await refreshCounts($)
     } while (isDue)
   } catch {
     // Nothing to show this round; the next poll tries again.
@@ -97,12 +92,12 @@ async function tick($: EngineInterface, item: TodoItem) {
     const text = await $.fs.read(data.path)
     const cut = typeof text === 'string' ? remove(text, item) : null
     if (cut === null) {
-      await refresh($)
+      await refreshTodo($)
       return say($, `"${item.text}" is no longer in ${data.name}.`, 'warning')
     }
     await $.fs.write(data.path, cut.text)
     await update($, undoable, () => ({ path: data.path, index: cut.index, lines: cut.lines, text: item.text }))
-    await refresh($)
+    await refreshTodo($)
     await say($, `"${item.text}" removed from ${data.name}.`, 'success')
   } catch {
     await say($, `Not removed: ${data.name} could not be written.`, 'error')
@@ -116,67 +111,47 @@ async function undo($: EngineInterface) {
     const text = await $.fs.read(last.path)
     await $.fs.write(last.path, restore(typeof text === 'string' ? text : '', last.index, last.lines))
     await update($, undoable, () => null)
-    await refresh($)
+    await refreshTodo($)
     await say($, `"${last.text}" is back.`, 'success')
   } catch {
     await say($, 'Not restored: the file could not be written.', 'error')
   }
 }
 
-async function start($: EngineInterface) {
-  await refresh($)
+// The cockpit's session.start calls this: settings, a first look, and the two polls (also with the pane closed,
+// because the overview tile and the tab label show the numbers).
+export async function startTodo($: EngineInterface, markerWords: string, sessionFiles: boolean) {
+  configure(markerWords, sessionFiles)
   timer?.cancel()
-  timer = $.clock.every(POLL_MS, () => void refresh($))
+  timer = $.clock.every(POLL_MS, () => void refreshTodo($))
   markerTimer?.cancel()
   markerTimer = $.clock.every(MARKER_POLL_MS, () => void refreshMarkers($))
+  void refreshTodo($)
   void refreshMarkers($)
-  // A project with a todo.md gets its pane without asking.
-  if ((await read($, list)) !== null) await $.ui.open({ id: PANE, title: 'Todo' })
 }
 
-export const register: Register = (on, options) => {
-  configure(String(options.markers ?? ''), options.sessionFiles !== false)
-
-  on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'todolist', description: 'Open the pane with the open items of this project\'s todo.md' })
-    await start($)
-
-    return next(e)
-  })
-
-  // Display only: never blocks; a file Claude wrote counts at once instead of at the next poll.
-  on('tool.call', { tool: /^(Write|Edit|MultiEdit|NotebookEdit)$/ }, async ($, e, next) => {
-    const ran = await next(e)
-    if (ran.deny === undefined && ran.isError !== true) {
-      if (isTrackingSession()) await trackFile($, e)
-      await refresh($)
-      await refreshMarkers($)
-    }
-
-    return ran
-  }).catch(($, e, next) => next(e))
-
-  on('command.run', { command: 'todolist' }, async $ => {
-    await refresh($)
-    await $.ui.open({ id: PANE, title: 'Todo' })
-
-    return { text: 'Todo pane opened.' }
-  })
-
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => view($, e))
+// A file Claude wrote counts at once instead of at the next poll. Display only: the call already ran.
+export async function todoTouched($: EngineInterface, e: unknown, ran: { deny?: unknown; isError?: boolean }) {
+  const tool = (e as { tool?: string }).tool ?? ''
+  if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool) || ran.deny !== undefined || ran.isError === true) return
+  if (isTrackingSession()) await trackFile($, e)
+  await refreshTodo($)
+  await refreshMarkers($)
 }
 
+// The tab: the open entries of todo.md, then the markers found in changed code.
 export async function view($: EngineInterface, e: RenderInput) {
   const ui = $.ui.resolve(e)
   const { Box, Button, Text } = ui
   const narrow = isNarrow(e)
   const data = await read($, list)
+  const code = await read($, markers)
   const message = await read($, told)
   const last = await read($, undoable)
-  const code = await read($, markers)
 
   const open = data?.items.filter(i => !i.done) ?? []
   const doneCount = (data?.items.length ?? 0) - open.length
+  const codeTotal = code?.counts.reduce((sum, c) => sum + c.n, 0) ?? 0
 
   // One row per entry, indented by its depth; a heading row whenever the section changes.
   const rows: unknown[] = []
@@ -189,47 +164,35 @@ export async function view($: EngineInterface, e: RenderInput) {
     rows.push(
       <Box key={`row-${item.index}`} marginLeft={item.depth > 0 ? 'md' : undefined} minWidth={0} overflow="hidden">
         <Button key={`item-${item.index}`} plain onPress={() => tick($, item)}>
-          <Text size={TYPE.body}>{`☐ ${item.text}`}</Text>
+          <Text size={TYPE.body} wrap="truncate">{`☐ ${item.text}`}</Text>
         </Button>
       </Box>,
     )
   }
 
   return (
-    <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
-      <Box justifyContent="space-between" alignItems="center" gap={SPACE.base}>
-        <Box flexShrink={0}>
-          <Text size={TYPE.heading} weight="semibold">Todo</Text>
-        </Box>
-        <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent="flex-end">
-          <Text dimColor size={TYPE.label} wrap="truncate">
-            {data === null ? 'no todo.md' : `${data.name} · ${open.length} open`}
-          </Text>
-        </Box>
-      </Box>
+    <Box flexDirection="column" gap={SPACE.base}>
+      {tiles(ui, 'todo-tiles', [tile(ui, `${open.length}`, 'open', open.length > 0 ? 'warning' : 'neutral', data === null ? 'no todo.md' : data.name), tile(ui, `${codeTotal}`, 'in code', codeTotal > 0 ? 'warning' : 'neutral', code === null ? 'none found' : `${code.fileCount} ${code.fileCount === 1 ? 'file' : 'files'}`)])}
 
-      {last !== null &&
-        actions(ui, 'undo', [<Button key="undo" label={narrow ? '↶ undo' : `↶ undo "${last.text.slice(0, 40)}"`} variant="secondary" onPress={() => undo($)} />])}
-      {message !== null && note(ui, 'note', message.text, message.tone)}
+      {last !== null && toolbar(ui, 'todo-undo', [<Button key="undo" label={narrow ? '↶ undo' : `↶ undo "${last.text.slice(0, 40)}"`} variant="secondary" onPress={() => undo($)} />])}
+      {message !== null && <Text key="todo-note" dimColor size={TYPE.label} wrap="wrap">{message.text}</Text>}
 
-      {data === null && emptyState(ui, 'missing', '☐', 'No todo.md in the project folder. Create one with lines like "- [ ] task" and this pane fills itself.')}
-      {data !== null && open.length === 0 && emptyState(ui, 'clear', '✓', doneCount > 0 ? `All done. ${doneCount} already ticked in the file.` : `${data.name} has no entries yet.`)}
+      {data === null && emptyState(ui, 'todo-missing', '☐', 'No todo.md in the project folder. Create one with lines like "- [ ] task" and this tab fills itself.')}
+      {data !== null && open.length === 0 && emptyState(ui, 'todo-clear', '✓', doneCount > 0 ? `All done. ${doneCount} already ticked in the file.` : `${data.name} has no entries yet.`, 'success')}
       {rows as never}
 
       {code !== null && sectionTitle(ui, 'sec-code', 'In code', <Text dimColor size={TYPE.label}>{label(code).replace('☐ ', '')}</Text>)}
       {code !== null &&
-        code.files.slice(0, MARKER_FILES_SHOWN).map(file => (
+        code.files.slice(0, FILES_SHOWN).map(file => (
           <Box key={`code-${file}`} minWidth={0} overflow="hidden">
             <Button key={`file-${file}`} plain onPress={() => void openInProject($, file)}>
               <Text size={TYPE.label} wrap="truncate">{`▸ ${file}`}</Text>
             </Button>
           </Box>
         ))}
-      {code !== null && code.files.length > MARKER_FILES_SHOWN && (
-        <Text dimColor size={TYPE.label}>{`… ${code.files.length - MARKER_FILES_SHOWN} more`}</Text>
-      )}
+      {code !== null && more(ui, 'code-more', code.files.length - FILES_SHOWN, 'more files')}
 
-      {data !== null && legend(ui, 'legend', 'Click an entry to tick it: its line (with sub-lines) is removed from the file. "undo" puts it back. Entries already marked [x] are not shown. A file under "In code" opens in your editor.')}
+      {data !== null && legend(ui, 'todo-legend', 'Click an entry to tick it: its line (with sub-lines) is removed from the file, "undo" puts it back. Entries already marked [x] are not shown. A file under "In code" opens in your editor.')}
     </Box>
   )
 }

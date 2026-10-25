@@ -33,7 +33,7 @@ Every tab builds from the same steps and building blocks. No locally built tiles
 3. **Empty state** (`emptyState`) or **entries in cards** (`card` with `cardHead`): title semibold, side info `caption` and dimmed.
 4. **Legend or status** (`legend`) at the very bottom, only when there are entries.
 
-Tab order: Overview (start), Files, Subagents, Tool calls (what happens in the session), Instruments, Errors (health), Project (info, scripts, ideas and change requests).
+Tab order: Overview (start), Files, Subagents, Tool calls (what happens in the session), Instruments, Errors (health), Todo (todo.md checklist and code markers), Project (info, scripts, ideas and change requests).
 
 Files tab: shows read files (`▤ read ×N`, tool Read) and changed files (`✎ changed ×N`, `◧ new`), filters All, Changed, Read only.
 

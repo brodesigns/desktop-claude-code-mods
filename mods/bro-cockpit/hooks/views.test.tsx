@@ -8,7 +8,7 @@ const PANE = {
   props: { title: 'Cockpit', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
 } as const
 
-const TABS = ['home', 'files', 'agents', 'calls', 'meter', 'errors', 'project'] as const
+const TABS = ['home', 'files', 'agents', 'calls', 'meter', 'errors', 'todo', 'project'] as const
 
 type OnLike = (event: string, hook: (_: unknown, e: unknown) => unknown) => void
 
@@ -51,7 +51,7 @@ test('a tab that throws shows the error card, not a blank pane', async ($, on) =
 // Filled data runs the card paths too: long texts, a failed call, a running agent, an idea.
 const LONG = 'a very long text that fits in no narrow pane and has to be cut off at the border'
 const FILLED: Record<string, unknown> = {
-  headCounts: { calls: 2, callsFailed: 1, files: 1, filesChanged: 1, filesRead: 1, agentsRunning: 1, agentsTotal: 2, context: 91, limit: 40, errors: 1, ideas: 1, ideasOpen: 1 },
+  headCounts: { calls: 2, callsFailed: 1, files: 1, filesChanged: 1, filesRead: 1, agentsRunning: 1, agentsTotal: 2, context: 91, limit: 40, errors: 1, ideas: 1, ideasOpen: 1, todoOpen: 2, todoCode: 3 },
   gitInfo: { project: 'demo-project-with-a-long-name', branch: 'feature/a-very-long-branch-name', changed: 3, staged: 1, modified: 1, untracked: 1, ahead: 2, behind: 1 },
   callList: [
     { id: 'c1', tool: 'Bash', arg: LONG, detail: LONG, lines: 0, note: 'command not found', isDone: true, isError: true, isDenied: false, startedAt: 1, ms: 1200, agent: false, agentId: '' },
@@ -119,7 +119,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 
   test(`every tab switched off leaves a hint (${surface})`, {
-    options: { show_home: false, show_files: false, show_agents: false, show_calls: false, show_meter: false, show_errors: false, show_project: false },
+    options: { show_home: false, show_files: false, show_agents: false, show_calls: false, show_meter: false, show_errors: false, show_todo: false, show_project: false },
   }, async ($, on) => {
     emptyState(on as never, 'home')
     const ui = await $.ui.mount({ ...PANE, surface })

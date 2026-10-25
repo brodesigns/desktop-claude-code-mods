@@ -56,10 +56,28 @@
       "description": "Show the Errors tab in the cockpit",
       "default": true
     },
+    "show_todo": {
+      "type": "boolean",
+      "title": "Todo tab",
+      "description": "Show the Todo tab in the cockpit: the open items of todo.md and the TODO markers in changed code",
+      "default": true
+    },
     "show_project": {
       "type": "boolean",
       "title": "Project tab",
       "description": "Show the Project tab in the cockpit",
+      "default": true
+    },
+    "markers": {
+      "type": "string",
+      "title": "Code markers",
+      "description": "Markers the Todo tab counts in changed files, comma separated",
+      "default": "TODO,FIXME,HACK,XXX"
+    },
+    "sessionFiles": {
+      "type": "boolean",
+      "title": "Session files",
+      "description": "Todo tab: also count files Claude wrote or edited in this session",
       "default": true
     },
     "show_gitband": {

@@ -9,6 +9,7 @@ import { register as meter, start as startMeter, view as meterView } from './met
 import { line as gitLine, register as git, start as startGit } from './git'
 import { register as projectCommands, start as startProject, view as projectView } from './project'
 import { view as homeView } from './home'
+import { startTodo, todoTouched, view as todoView } from './todo'
 import { begin, finish, view as toolcallsView } from './toolcalls'
 import { isNarrow } from './layout'
 import { PANE } from './pane'
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'calls', icon: '⌘', label: 'Tool calls' },
   { id: 'meter', icon: '◔', label: 'Instruments' },
   { id: 'errors', icon: '⚠', label: 'Errors' },
+  { id: 'todo', icon: '☐', label: 'Todo' },
   { id: 'project', icon: '▣', label: 'Project' },
 ] as const
 const tab = atom({ plugin: 'bro-cockpit', key: 'cockpitTab' } as const, 'home')
@@ -37,6 +39,7 @@ async function safe($: EngineInterface, e: RenderInput, current: string, go: (id
       case 'calls': return await toolcallsView($, e)
       case 'meter': return await meterView($, e)
       case 'errors': return await errorsView($, e)
+      case 'todo': return await todoView($, e)
       case 'project': return await projectView($, e)
       default: return null
     }
@@ -58,12 +61,13 @@ export const register: Register = (on, options) => {
   const shown = (id: string) => tabs.some(t => t.id === id)
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cockpit', description: 'Open the cockpit pane: /cockpit [home|files|agents|calls|meter|errors|project]' })
+    await $.command.register({ name: 'cockpit', description: 'Open the cockpit pane: /cockpit [home|files|agents|calls|meter|errors|todo|project]' })
     void $.ui.open({ id: PANE, title: 'Cockpit' })
     await startGit($)
     await startAgents($)
     await startMeter($)
     await startProject($)
+    await startTodo($, String(options.markers ?? ''), options.sessionFiles !== false)
     await refreshCounts($)
 
     return next(e)
@@ -85,6 +89,7 @@ export const register: Register = (on, options) => {
     const ran = await next(e)
     await finish($, call, ran)
     await track($, e, ran)
+    await todoTouched($, e, ran)
     await refreshCounts($)
 
     return ran
@@ -104,6 +109,7 @@ export const register: Register = (on, options) => {
       files: c.files > 0 ? ` ${c.files}` : '',
       meter: c.context >= 0 ? ` ${c.context}%` : '',
       errors: c.errors > 0 ? ` ⚠${c.errors}` : '',
+      todo: c.todoOpen > 0 ? ` ${c.todoOpen}` : '',
       project: c.ideasOpen > 0 ? ` ${c.ideasOpen}` : '',
     }
     // The same label in the select and in the terminal's button row.

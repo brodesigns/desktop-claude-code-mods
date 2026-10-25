@@ -3,6 +3,7 @@ import type { EngineInterface, Register, RenderInput, RenderSurface } from 'clau
 
 import type { GitInfo } from '../types'
 import { branchUrl, commitsUrl } from './git-url'
+import { openTarget } from './open'
 import { isNarrow } from './layout'
 import { loadProject } from './project'
 import { isOn } from './settings'
@@ -113,19 +114,6 @@ export async function line($: EngineInterface, e: RenderInput) {
       {git.branch !== '' && statusPill(ui, git, narrow)}
     </Box>
   )
-}
-
-// Opens a folder or an address with the system's opener. Argument vector, no shell: the target is never parsed.
-async function openTarget($: EngineInterface, target: string) {
-  for (const program of ['open', 'xdg-open']) {
-    try {
-      const res = await $.process.run([program, target], { timeoutMs: 5_000 })
-      if (res.exitCode === 0) return
-    } catch {
-      // This opener is not there; the next one tries.
-    }
-  }
-  $.ui.toast(`Could not open ${target}`)
 }
 
 async function openFolder($: EngineInterface) {

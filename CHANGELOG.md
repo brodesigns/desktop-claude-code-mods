@@ -6,7 +6,7 @@ First public version, tested with Claude Code 2.1.308.
 
 ### bro-cockpit
 
-- Pane with tabs: Overview (tiles, attention card), Files (read and changed), Subagents (list, tree view, animated worker), Tool calls (grouped, details on click), Instruments (context, 5 hour limit, cost, turns), Errors (failed tool calls), Project (info, scripts, ideas and change requests).
+- Pane with tabs: Overview (tiles, attention card), Files (read and changed), Subagents (list, tree view, animated worker), Tool calls (grouped, details on click), Instruments (context, 5 hour limit, cost, turns), Errors (failed tool calls), Todo (open items of the project's todo.md as a checklist, ticking removes the line with undo; TODO, FIXME, HACK and XXX markers of changed files, each file one click away), Project (info, scripts, ideas and change requests).
 - Every tab and the git band can be switched off on its own in `/config`, section `bro-cockpit` (switches `show_<tab>` and `show_gitband`, all on by default). A tab that is off also disappears from the Overview; with all tabs off the pane shows a hint.
 - Ideas and change requests are saved per project and survive across sessions.
 - Git band above the prompt: project, branch, uncommitted changes, commits to push or pull. Bands of other mods stay drawn beneath it.
@@ -30,7 +30,6 @@ First public version, tested with Claude Code 2.1.308.
 
 - `prompt-library`: saved prompts with search and placeholders, inserted with `/p`.
 - `snippet-pane`: code snippets per project, secrets redacted.
-- `todo-md-pane`: todo pane with the open items of the project's todo.md as a checklist (ticking removes the line, with undo) and the TODO, FIXME, HACK and XXX markers of changed files, each file one click away.
 - `kanban-pane`: small board per project with open, in progress and done.
 - `log-viewer`: output of the latest Bash calls with filter and search.
 - `dependency-pane`: project dependencies, checked with `npm outdated` on request.

@@ -7,7 +7,7 @@ import { isFailed } from './status'
 
 export const EMPTY_COUNTS: HeadCounts = {
   calls: 0, callsFailed: 0, files: 0, filesChanged: 0, filesRead: 0, agentsRunning: 0, agentsTotal: 0,
-  context: -1, limit: -1, errors: 0, ideas: 0, ideasOpen: 0,
+  context: -1, limit: -1, errors: 0, ideas: 0, ideasOpen: 0, todoOpen: 0, todoCode: 0,
 }
 
 // Every reader declares this atom in its own file (validate wants the literal reference there).
@@ -18,6 +18,8 @@ const files = atom({ plugin: 'bro-cockpit', key: 'fileList' } as const, [])
 const agents = atom({ plugin: 'bro-cockpit', key: 'agentList' } as const, [])
 const meter = atom({ plugin: 'bro-cockpit', key: 'meter' } as const, null)
 const ideas = atom({ plugin: 'bro-cockpit', key: 'ideaList' } as const, [])
+const todoList = atom({ plugin: 'bro-cockpit', key: 'todoList' } as const, null)
+const todoMarkers = atom({ plugin: 'bro-cockpit', key: 'todoMarkers' } as const, null)
 
 // Recounts from the lists and writes `headCounts` only when a number moved. The head and the start page
 // read this one atom, so a write to a list (every tool call) redraws them only when a shown number changes.
@@ -27,6 +29,8 @@ export async function refreshCounts($: EngineInterface) {
   const a = await read($, agents)
   const m = await read($, meter)
   const i = await read($, ideas)
+  const t = await read($, todoList)
+  const code = await read($, todoMarkers)
   const failed = c.filter(isFailed).length
   const counts: HeadCounts = {
     calls: c.length,
@@ -41,6 +45,8 @@ export async function refreshCounts($: EngineInterface) {
     errors: failed,
     ideas: i.length,
     ideasOpen: i.filter(x => x.status !== 'done').length,
+    todoOpen: (t?.items ?? []).filter(x => !x.done).length,
+    todoCode: (code?.counts ?? []).reduce((sum, c) => sum + c.n, 0),
   }
 
   return setIfChanged(() => read($, headCounts), v => update($, headCounts, () => v), counts)

@@ -1,8 +1,8 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { TodoSummary } from '../types'
-import { changedPaths, countMarkers, isSkipped, joinPath, parseMarkers, summarize } from './scan'
-import type { FileCounts } from './scan'
+import { changedPaths, countMarkers, isSkipped, joinPath, parseMarkers, summarize } from './markerscan'
+import type { FileCounts } from './markerscan'
 
 // Caps: at most this many files per scan, none bigger than this, at most this many session files kept.
 const MAX_FILES = 200

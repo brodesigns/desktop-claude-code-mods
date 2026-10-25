@@ -25,6 +25,7 @@ export async function view($: EngineInterface, e: RenderInput, go: Go, shown: (t
   const meter = { percent: c.context, limit: c.limit }
   const project = { open: c.ideasOpen, total: c.ideas }
   const errors = c.errors
+  const todo = { open: c.todoOpen, code: c.todoCode }
 
   const hot = meter.percent >= 85 || meter.limit >= 85
   // Failed calls show once in the attention list, under Errors; the calls tile names them in its sub line.
@@ -34,6 +35,7 @@ export async function view($: EngineInterface, e: RenderInput, go: Go, shown: (t
     { id: 'calls', icon: '⌘', title: 'Tool calls', value: `${calls.total}`, sub: calls.failed > 0 ? `${calls.failed} ${calls.failed === 1 ? 'error' : 'errors'}` : 'no errors', tone: calls.failed > 0 ? 'error' : 'text', alert: false },
     { id: 'meter', icon: '◔', title: 'Instruments', value: meter.percent >= 0 ? `${meter.percent}%` : '·', sub: meter.limit >= 0 ? `context · 5h limit ${meter.limit}%` : 'context', tone: hot ? 'error' : meter.percent >= 60 ? 'warning' : 'success', alert: hot },
     { id: 'errors', icon: '⚠', title: 'Errors', value: `${errors}`, sub: errors > 0 ? 'need attention' : 'all calm', tone: errors > 0 ? 'error' : 'success', alert: errors > 0 },
+    { id: 'todo', icon: '☐', title: 'Todo', value: `${todo.open}`, sub: `open · ${todo.code} in code`, tone: todo.open > 0 ? 'warning' : 'text', alert: false },
     { id: 'project', icon: '▣', title: 'Project', value: `${project.open}`, sub: `open ideas · ${project.total} total`, tone: project.open > 0 ? 'warning' : 'text', alert: false },
   ].filter(x => shown(x.id))
   const attention = entries.filter(x => x.alert)
