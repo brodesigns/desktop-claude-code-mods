@@ -8,7 +8,7 @@ A guard hook for Claude Code that stops Claude from writing credentials in plain
 - private keys (PEM header)
 - plaintext credentials such as `password = "..."`, `api_key: '...'` or `token = "..."`
 
-The message names only the kind of secret, never the value. A match is blocked on every attempt. If the guard itself fails, the call is blocked to be safe. Only `node_modules/` and `.env.example` are skipped.
+The message names only the kind of secret, never the value. A match is blocked on every attempt. If the guard itself fails, the call is blocked to be safe. Only `node_modules/` and `.env.example` are skipped. That includes `.env` files: the guard also stops Claude from writing a real key into one, so put real values there yourself.
 
 **Limits:** only known patterns are detected. Unknown formats, split or encoded values and values read from variables (`$TOKEN`) pass through. Input you type yourself in the terminal and files written by other programs are not seen by the guard.
 

@@ -2,7 +2,17 @@
   "name": "dependency-pane",
   "version": "0.1.1",
   "description": "Pane with the project's dependencies from package.json, requirements.txt, pyproject.toml and composer.json, checked with npm outdated at the press of a button",
-  "author": { "name": "BroDesigns" },
+  "author": {
+    "name": "BroDesigns"
+  },
   "license": "MIT",
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "keywords": [
+    "claude-code",
+    "pane",
+    "dependencies",
+    "npm"
+  ],
   "types": "./types/index.d.ts"
 }

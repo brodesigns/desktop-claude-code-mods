@@ -6,7 +6,9 @@
 ![Model tokens](https://img.shields.io/badge/model_tokens-one_mod_only-success)
 ![Mods](https://img.shields.io/badge/mods-13-informational)
 
-**Plugins (mods) for Claude Code in the Claude desktop app.** Add a live session dashboard pane next to the chat, small status bands above the prompt (git, branch warning, environment, usage limits, deadline, daily totals), panes for prompts, snippets, a kanban board, Bash logs and dependencies, and a hook that stops Claude from writing API keys and passwords into files or shell commands. Mods run in the Claude Code plugin engine, not in the model, so they cost no extra tokens.
+**Plugins (mods) for Claude Code in the Claude desktop app.** Add a live session dashboard pane next to the chat, small status bands above the prompt (git, branch warning, environment, usage limits, deadline, daily totals), panes for prompts, snippets, a kanban board, Bash logs and dependencies, and a hook that stops Claude from writing API keys and passwords into files or shell commands. Mods run in the Claude Code plugin engine, not in the model, so they cost no extra tokens, with one deliberate exception named in [Security and privacy](#security-and-privacy): `session-summary` calls a small model.
+
+> **Not an official Anthropic project.** Claude and Claude Code are trademarks of Anthropic. This repository is not affiliated with or endorsed by Anthropic.
 
 13 mods, one marketplace. Every mod is its own plugin: install only the ones you want.
 
@@ -32,7 +34,7 @@ Bands appear only when there is something to show, and they stack.
 | [`env-band`](mods/env-band) | Shows the active environment (`NODE_ENV`, `APP_ENV` or `ENV` from the project's `.env` files) and which `.env` files exist, no other values |
 | [`daily-band`](mods/daily-band) | Today's working time, cost, turns and commits, added up across all sessions of the day |
 | [`deadline-band`](mods/deadline-band) | Countdown to the project deadline set with `/deadline <date> [text]`, colored by urgency |
-| [`limit-band`](mods/limit-band) | 5 hour and 7 day usage limits with a countdown to the reset, shown only above a threshold |
+| [`limit-band`](mods/limit-band) | 5 hour usage limit with a countdown to the reset (always shown) and the 7 day limit above a threshold |
 
 ### Panes next to the chat
 
@@ -40,14 +42,13 @@ Bands appear only when there is something to show, and they stack.
 |---|---|
 | [`prompt-library`](mods/prompt-library) | Light list of saved prompts for all projects or just this one, with placeholders, inserted into the prompt box with `/p` |
 | [`snippet-pane`](mods/snippet-pane) | Light list of code snippets per project, one line each, with insert, copy and delete; secrets are redacted |
-| [`session-summary`](mods/session-summary) | Very short running summary of the session, written after each turn by Haiku from a small digest. The one mod that spends (few) model tokens |
+| [`session-summary`](mods/session-summary) | Very short running summary of the session in a language you choose, written by Haiku in small batches while its pane is open, from a short digest of each turn. The one mod that spends (few) model tokens and sends redacted session excerpts to the model |
 | [`kanban-pane`](mods/kanban-pane) | Small kanban board per project with open, in progress and done columns |
 | [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search |
 | [`dependency-pane`](mods/dependency-pane) | Dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`, checked with `npm outdated` at the push of a button |
 
 Every mod has its own README in `mods/<name>/` with commands and settings.
 
-> **Not an official Anthropic project.** Claude and Claude Code are trademarks of Anthropic.
 
 ## Contents
 
@@ -68,7 +69,7 @@ Every mod has its own README in `mods/<name>/` with commands and settings.
 
 ## What are Claude Code mods?
 
-Mods are plugins with a hooks module that change the interface or the behavior of Claude Code: a pane that stays next to the chat, a band above the prompt, a status line, slash commands, and hooks on tool calls. They are an early access feature of Claude Code, available in the desktop app and in the terminal. A mod is a folder with a `plugin.json` and a hooks module written in TypeScript. This repository contains 15 mods and the lessons learned while building them (see [docs](#documentation)).
+Mods are plugins with a hooks module that change the interface or the behavior of Claude Code: a pane that stays next to the chat, a band above the prompt, a status line, slash commands, and hooks on tool calls. They are an early access feature of Claude Code, available in the desktop app and in the terminal. A mod is a folder with a `plugin.json` and a hooks module written in TypeScript. This repository contains 13 mods and the lessons learned while building them (see [docs](#documentation)).
 
 ## bro-cockpit: dashboard for Claude Code
 
@@ -82,9 +83,9 @@ A single pane next to your Claude Code chat that answers "what is happening in t
 - **Errors:** failed tool calls in one place.
 - **Project:** project name, folder, detected stack (Next.js, WordPress, Node, PHP, Docker) and `package.json` scripts, plus ideas and change requests that are **saved per project across sessions**.
 - **Git band:** project, branch, uncommitted changes (staged, modified, untracked) and commits to push or pull, above the prompt. Bands of other mods stay drawn beneath it.
-- **Per-tab switches:** every tab and the git band can be switched off on its own in `/config`, section `bro-cockpit` (`show_home`, `show_files`, `show_agents`, `show_calls`, `show_meter`, `show_errors`, `show_project`, `show_gitband`). All are on by default.
+- **Per-tab switches:** every tab and the git band can be switched off on its own in `/config`, section `bro-cockpit` (`show_home`, `show_files`, `show_agents`, `show_calls`, `show_meter`, `show_errors`, `show_todo`, `show_project`, `show_gitband`). All are on by default. The Todo tab also reads the settings `markers` (the words it looks for, default `TODO,FIXME,HACK,XXX`) and `sessionFiles`.
 
-It adapts to narrow panes, works in light and dark mode and falls back to text without graphics in the terminal. It runs only `git status` locally every 15 seconds and makes no network requests.
+It adapts to narrow panes, works in light and dark mode and falls back to text without graphics in the terminal. It runs `git` locally (`status` every 15 seconds, a `grep` for the code markers every 30 seconds while the pane is open, `rev-parse` and `remote get-url` when the project changes) and makes no network requests of its own. A click hands a folder or address to your system's opener (`open`, `xdg-open`): the project folder, the branch page on GitHub, a marker's file in the file manager. It never opens or runs a file of the project.
 
 ## secret-guard: stop Claude Code from writing secrets
 
@@ -134,7 +135,7 @@ Reload after changes with `/reload-plugins`. Uninstall with `claude plugin unins
 
 | Command | Effect |
 |---|---|
-| `/cockpit [home\|files\|agents\|calls\|meter\|errors\|project]` | Opens the cockpit pane, optionally on a given tab |
+| `/cockpit [home\|files\|agents\|calls\|meter\|errors\|todo\|project]` | Opens the cockpit pane, optionally on a given tab |
 | `/idea <text>` | Saves an idea for the current project |
 | `/change <text>` | Saves a change request for the current project |
 | `/deadline <date> [text]` | Sets the project deadline for `deadline-band` |
@@ -169,7 +170,7 @@ The hooks, bands and commands work in both. The panes draw graphics in the deskt
 
 ### What do the mods access on my machine?
 
-Programs that mods run locally: `git` (cockpit, `branch-guard-band`, `deadline-band`, `daily-band`) and `npm outdated` only on a button press (`dependency-pane`). The guards run nothing. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals) stays in the Claude Code plugin store on your machine.
+Programs that mods run locally: `git` (`bro-cockpit`, `branch-guard-band`, `deadline-band`, `daily-band`); `open` and `xdg-open` on a click (`bro-cockpit`: project folder, GitHub branch page, a file shown in the file manager; `env-band`: an env file shown in the file manager; `limit-band`: the usage page in your browser); and `npm outdated` only on a button press (`dependency-pane`). `secret-guard` runs nothing. Every program runs as an argument list, never through a shell. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals, the summary language) stays in the Claude Code plugin store on your machine. The one mod that sends data to a model is `session-summary`, see [Security and privacy](#security-and-privacy).
 
 ### Can I use only the secret guard?
 
@@ -185,7 +186,7 @@ Tested with 2.1.308. The mod API is early access and can change between versions
 
 ## Security and privacy
 
-Mods run with your permissions. The mods themselves make no network calls, with one exception: `npm outdated` in `dependency-pane` asks the npm registry when you press its button. Data stays on your machine. The guards are helpers, not guaranteed protection. See [SECURITY.md](SECURITY.md) to report a problem.
+Mods run with your permissions. The mods make no network requests of their own, with these exceptions: `npm outdated` in `dependency-pane` asks the npm registry when you press its button; some clicks open a web page in your browser (`limit-band` the Claude usage page, `bro-cockpit` the GitHub page of your branch, only for a `github.com` remote); and `session-summary` sends **redacted excerpts of your session** (your question cut to 160 characters, the answer cut to 240, and the names of the files Claude wrote) to a model through your session's own client and credentials, in small batches while its pane is open. `session-summary` is on by default and opens its pane at the start of a session: switch it off with the `● auto` button in its pane or with `auto` in `/config`, or do not install it. Everything else stays on your machine. Mods only show files in the file manager and never open or run them. Running `git` in a repository you did not write can run that repository's own git configuration (for example `core.fsmonitor`): open untrusted repositories with care, as with any git tool. The guards are helpers, not guaranteed protection. See [SECURITY.md](SECURITY.md) to report a problem.
 
 ## Limitations
 

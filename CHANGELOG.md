@@ -1,5 +1,14 @@
 # Changelog
 
+## Changes since the first version (mods are at 0.1.1 to 0.1.7)
+
+- All bands are one borderless row in small text with a `▌` marker in the BroDesigns blue `#39639E`; long text is cut instead of wrapping, and parts are clickable (project folder, GitHub branch page, env file in the file manager, usage page).
+- `bro-cockpit`: new Todo tab (todo.md checklist you can tick, add to and undo; TODO, FIXME, HACK and XXX anywhere in the project with file, line and text, a click shows the file in the file manager), a "‹ Overview" button on every tab, faster tool calls (the marker search no longer blocks edits), correct call counts in long sessions, a git band that follows commits at once.
+- `limit-band`: the 5-hour countdown is always shown (switch `fiveHour`).
+- `snippet-pane`, `prompt-library`, `kanban-pane`, `log-viewer`, `dependency-pane`: light one-line-per-entry panes, forms behind `＋ new`, copy and insert actions, fixes for stale data across sessions.
+- `session-summary` (new): short running summary by Haiku in cheap batches while its pane is open, language choice, on/off switch in the pane. The one mod that spends model tokens.
+- Removed: `port-band`, `todo-band`, `todo-md-pane` (their features live in the cockpit).
+
 ## 0.1.0
 
 First public version, tested with Claude Code 2.1.308.

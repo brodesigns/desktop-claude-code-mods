@@ -2,8 +2,18 @@
   "name": "env-band",
   "version": "0.1.2",
   "description": "Band above the prompt: shows which environment is active (NODE_ENV, APP_ENV or ENV from the project's .env files) and which .env files exist. Shows and stores no other values",
-  "author": { "name": "BroDesigns" },
+  "author": {
+    "name": "BroDesigns"
+  },
   "license": "MIT",
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "keywords": [
+    "claude-code",
+    "band",
+    "environment",
+    "dotenv"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "variables": {

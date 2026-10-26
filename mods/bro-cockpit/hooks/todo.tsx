@@ -6,7 +6,7 @@ import { refreshCounts } from './counts'
 import { isNarrow } from './layout'
 import { configure, isTrackingSession, scanMarkers, trackFile } from './markers'
 import { label } from './markerscan'
-import { openTarget } from './open'
+import { revealTarget } from './open'
 import { PANE } from './pane'
 import { setIfChanged } from './state'
 import { emptyState, legend, more, sectionTitle, SPACE, tile, tiles, toolbar, TYPE } from './style'
@@ -53,14 +53,14 @@ async function isPaneUp($: EngineInterface) {
 }
 
 // The todo.md in the project root, or null. A missing folder or file reads as "none".
-async function locate($: EngineInterface): Promise<{ path: string; name: string; mtimeMs: number; size: number } | null> {
+async function locate($: EngineInterface): Promise<{ path: string; name: string; mtimeMs: number; size: number; isLink: boolean } | null> {
   try {
     const root = await $.session.root()
     const files = (await $.fs.list(root)).filter(f => f.kind === 'file' || (f.kind === 'other' && f.isLink))
     const name = findName(files.map(f => f.name))
     const entry = files.find(f => f.name === name)
 
-    return name === null || entry === undefined ? null : { path: `${root}/${name}`, name, mtimeMs: entry.mtimeMs, size: entry.size }
+    return name === null || entry === undefined ? null : { path: `${root}/${name}`, name, mtimeMs: entry.mtimeMs, size: entry.size, isLink: entry.isLink }
   } catch {
     return null
   }
@@ -120,9 +120,18 @@ async function tick($: EngineInterface, item: TodoItem) {
   await serial(() => tickNow($, item))
 }
 
+// A todo.md that is a symbolic link is shown but never written: the link could lead out of the project.
+async function isLinked($: EngineInterface): Promise<boolean> {
+  const found = await locate($)
+  if (found === null || !found.isLink) return false
+  await say($, `${found.name} is a symbolic link: it is shown, but never changed from here.`, 'warning')
+
+  return true
+}
+
 async function tickNow($: EngineInterface, item: TodoItem) {
   const data = await read($, list)
-  if (data === null) return
+  if (data === null || (await isLinked($))) return
   try {
     const text = await $.fs.read(data.path)
     const cut = typeof text === 'string' ? remove(text, item) : null
@@ -151,6 +160,7 @@ async function addNow($: EngineInterface, input: string) {
   const entries = entriesFrom(input)
   try {
     const found = await locate($)
+    if (found?.isLink === true) return say($, `${found.name} is a symbolic link: it is shown, but never changed from here.`, 'warning')
     const path = found?.path ?? `${await $.session.root()}/todo.md`
     const name = found?.name ?? 'todo.md'
     const before = found === null ? null : await $.fs.read(path)
@@ -175,7 +185,7 @@ async function undo($: EngineInterface) {
 
 async function undoNow($: EngineInterface) {
   const last = await read($, undoable)
-  if (last === null) return
+  if (last === null || (await isLinked($))) return
   try {
     const text = await $.fs.read(last.path)
     seen = ''
@@ -290,7 +300,7 @@ export async function view($: EngineInterface, e: RenderInput) {
       {code !== null &&
         code.hits.slice(0, HITS_SHOWN).map(hit => (
           <Box key={`hit-${hit.file}:${hit.line}`} minWidth={0} overflow="hidden">
-            <Button key={`file-${hit.file}:${hit.line}`} plain onPress={() => void openTarget($, `${code.root}/${hit.file}`)}>
+            <Button key={`file-${hit.file}:${hit.line}`} plain onPress={() => void revealTarget($, `${code.root}/${hit.file}`)}>
               <Text size={TYPE.label} wrap="truncate">
                 {`▸ ${hit.file}:${hit.line}`}
                 <Text dimColor>{`  ${hit.text}`}</Text>
@@ -300,7 +310,7 @@ export async function view($: EngineInterface, e: RenderInput) {
         ))}
       {code !== null && more(ui, 'code-more', codeTotal - Math.min(HITS_SHOWN, code.hits.length), 'more in the project')}
 
-      {data !== null && legend(ui, 'todo-legend', 'Click an entry to tick it: its line (with sub-lines) is removed from the file, "undo" puts it back. Entries already marked [x] are not shown. A hit under "In code" opens its file in your editor.')}
+      {data !== null && legend(ui, 'todo-legend', 'Click an entry to tick it: its line (with sub-lines) is removed from the file, "undo" puts it back. Entries already marked [x] are not shown. A hit under "In code" shows its file in the file manager.')}
     </Box>
   )
 }

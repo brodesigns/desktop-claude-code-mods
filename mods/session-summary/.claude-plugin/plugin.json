@@ -1,9 +1,19 @@
 {
   "name": "session-summary",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Pane with a very short running summary of what happened in this session, written in cheap batches by the cheapest model (Haiku) from a small digest, only while the pane is open",
-  "author": { "name": "BroDesigns" },
+  "author": {
+    "name": "BroDesigns"
+  },
   "license": "MIT",
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "keywords": [
+    "claude-code",
+    "pane",
+    "summary",
+    "haiku"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "model": {

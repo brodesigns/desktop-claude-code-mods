@@ -1,4 +1,5 @@
-"""Draws the icons of the twelve smaller mods (1024 px PNG each). Usage: python3 make_more_icons.py <output folder>"""
+"""Draws the icons of the smaller mods (1024 px PNG each). Usage: python3 make_more_icons.py <output folder>
+Needs Pillow and the macOS font path below (BOLD); change it to run the script on another system."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import math, sys
 
@@ -146,6 +147,17 @@ text_center(d, 1024, 1010, "{ }", 900, (250, 220, 255))
 d.rounded_rectangle((996, 800, 1052, 1240), radius=28, fill=(240, 128, 255))
 d.rounded_rectangle((520, 1500, 1528, 1570), radius=35, fill=(255, 255, 255, 70))
 finish(img, "snippet-pane")
+
+# session-summary: a short note with three bullet lines and a spark
+img = base((16, 52, 84), (8, 26, 48), (110, 200, 255))
+card(img, (430, 440, 1618, 1608), 130, WHITE)
+d = ImageDraw.Draw(img)
+for k, w in enumerate([560, 640, 420]):
+    y = 640 + k * 270
+    d.ellipse((560, y, 640, y + 80), fill=(40, 120, 190))
+    d.rounded_rectangle((720, y + 12, 720 + w, y + 68), radius=28, fill=(150, 170, 200))
+d.polygon([(1480, 330), (1530, 440), (1640, 490), (1530, 540), (1480, 650), (1430, 540), (1320, 490), (1430, 440)], fill=(110, 200, 255))
+finish(img, "session-summary")
 
 # kanban-pane: three columns with cards
 img = base((30, 60, 128), (14, 28, 68), (130, 177, 255))

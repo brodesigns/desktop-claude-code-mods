@@ -2,7 +2,17 @@
   "name": "prompt-library",
   "version": "0.1.2",
   "description": "Prompt library: saved prompts for all projects or only this one, a light one-line-per-prompt pane with placeholders, put into the prompt box with /p",
-  "author": { "name": "BroDesigns" },
+  "author": {
+    "name": "BroDesigns"
+  },
   "license": "MIT",
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "keywords": [
+    "claude-code",
+    "pane",
+    "prompts",
+    "snippets"
+  ],
   "types": "./types/index.d.ts"
 }

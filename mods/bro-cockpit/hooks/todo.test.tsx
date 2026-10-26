@@ -253,7 +253,7 @@ test('no todo.md: the tab says so', async ($, on) => {
   await ui.unmount()
 })
 
-test('a marker in the middle of any file shows with file, line and text; a click opens the file', async ($, on) => {
+test('a marker in the middle of any file shows with file, line and text; a click shows the file in the file manager and never opens it', async ($, on) => {
   const opened: string[][] = []
   const files = {
     '/p/a.ts': 'const a = 1\n// some code\n// TODO one\n// FIXME three\n',
@@ -271,7 +271,7 @@ test('a marker in the middle of any file shows with file, line and text; a click
   expect((await ui.find({ type: 'Button', text: /c\.ts/ })) == null).toBe(true)
   expect((await ui.find({ type: 'Button', text: /todo\.md/ })) == null).toBe(true)
   await ui.press({ key: 'file-deep/d.ts:30' })
-  expect(opened).toEqual([['open', '/p/deep/d.ts']])
+  expect(opened).toEqual([['open', '-R', '/p/deep/d.ts']])
   await ui.unmount()
 })
 
@@ -429,4 +429,24 @@ test('/cockpit with an unknown tab says so and still opens the pane', async ($, 
   expect((await run('foo')).text).toMatch(/Unknown tab "foo"\. Try: home, files, agents, calls, meter, errors, todo, project/)
   expect((await run('todo')).text).toBe('Cockpit pane opened.')
   expect((await run('')).text).toBe('Cockpit pane opened.')
+})
+
+test('a symlinked todo.md is shown but never written: tick, add and undo refuse', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] linked\n' }
+  world(on, files, '', [], [{ name: 'todo.md', kind: 'other', size: 0, mtimeMs: 0, isLink: true }])
+  await begin($ as never, on)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /☐ linked/ })) != null).toBe(true)
+  await ui.press({ key: 'item-0' })
+  expect(files['/p/todo.md']).toBe('- [ ] linked\n')
+  await ui.press({ key: 'add' })
+  await ui.unmount()
+  const open = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await open.input({ key: 'todo-add', text: 'new thing' })
+  expect(files['/p/todo.md']).toBe('- [ ] linked\n')
+  await open.unmount()
+  const after = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await after.find({ type: 'Text', text: /is a symbolic link/ })) != null).toBe(true)
+  await after.unmount()
 })

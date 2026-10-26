@@ -28,7 +28,7 @@
     {
       "name": "limit-band",
       "source": "./mods/limit-band",
-      "description": "Band above the prompt: 5 hour and 7 day usage limits with a countdown to the reset, shown only above a threshold"
+      "description": "Band above the prompt: the 5-hour limit with its reset countdown (always shown) and the 7-day limit above a threshold"
     },
     {
       "name": "deadline-band",
@@ -53,7 +53,7 @@
     {
       "name": "session-summary",
       "source": "./mods/session-summary",
-      "description": "Pane with a very short running summary of the session, written after each turn by the cheapest model (Haiku) from a small digest. The one mod that spends a little model tokens"
+      "description": "Pane with a very short running summary of the session in a language you choose, written by Haiku in small batches while the pane is open from a short digest of each turn. The one mod that spends a little model tokens and sends redacted session excerpts to the model"
     },
     {
       "name": "kanban-pane",
