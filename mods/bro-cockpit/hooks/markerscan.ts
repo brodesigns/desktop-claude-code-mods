@@ -1,4 +1,5 @@
 import type { TodoHit, TodoSummary } from '../types'
+import { plain } from './todomd'
 
 // Pure helpers: no `$`, no state.
 
@@ -35,7 +36,7 @@ export const hitsIn = (file: string, text: string, markers: readonly string[]): 
   const out: TodoHit[] = []
   text.split('\n').forEach((line, i) => {
     const marker = markerIn(line, markers)
-    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(line) })
+    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(plain(line)) })
   })
 
   return out
@@ -49,15 +50,16 @@ export const parseGrep = (stdout: string, markers: readonly string[], max = 5000
     const m = row.match(/^(.+?):(\d+):(.*)$/)
     if (m === null) continue
     const marker = markerIn(m[3] ?? '', markers)
-    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(m[3] ?? '') })
+    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(plain(m[3] ?? '')) })
   }
 
   return out
 }
 
-// Binary and generated files never hold a marker worth showing; the todo.md is the checklist, not a source of hits.
+// Binary and generated files never hold a marker worth showing, nor do prose documents (a README or changelog
+// that names the marker words is not a task); the todo.md is the checklist, not a source of hits.
 export const isSkipped = (path: string) =>
-  /\.(png|jpe?g|gif|webp|ico|icns|bmp|tiff?|pdf|zip|gz|tgz|bz2|xz|7z|rar|jar|woff2?|ttf|otf|eot|mp[34]|mov|avi|wav|ogg|webm|exe|dll|so|dylib|bin|class|o|a|wasm|pyc|sqlite|db|lockb|map|min\.js|min\.css)$/i.test(path) ||
+  /\.(png|jpe?g|gif|webp|ico|icns|bmp|tiff?|pdf|zip|gz|tgz|bz2|xz|7z|rar|jar|woff2?|ttf|otf|eot|mp[34]|mov|avi|wav|ogg|webm|exe|dll|so|dylib|bin|class|o|a|wasm|pyc|sqlite|db|lockb|map|min\.js|min\.css|md|mdx|markdown|txt|rst|adoc)$/i.test(path) ||
   /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock)$/.test(path) ||
   /^todo\.md$/i.test(path)
 

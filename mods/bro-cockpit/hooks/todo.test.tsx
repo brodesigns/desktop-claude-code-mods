@@ -337,7 +337,9 @@ test('helpers: whole words, first marker names the hit, binary and generated fil
   expect(isSkipped('pnpm-lock.yaml')).toBe(true)
   expect(isSkipped('logo.png')).toBe(true)
   expect(isSkipped('TODO.md')).toBe(true)
-  expect(isSkipped('src/todo.md')).toBe(false)
+  expect(isSkipped('CHANGELOG.md')).toBe(true)
+  expect(isSkipped('docs/notes.txt')).toBe(true)
+  expect(isSkipped('src/todo.ts')).toBe(false)
   const sum = summarize([{ file: 'b.ts', line: 2, marker: 'FIXME', text: 'x' }, { file: 'a.ts', line: 9, marker: 'TODO', text: 'y' }, { file: 'a.ts', line: 1, marker: 'TODO', text: 'z' }, { file: 'pnpm-lock.yaml', line: 1, marker: 'TODO', text: 'q' }], words, '/p')
   expect(sum.counts).toEqual([{ marker: 'TODO', n: 2 }, { marker: 'FIXME', n: 1 }])
   expect(sum.hits.map(h => `${h.file}:${h.line}`)).toEqual(['a.ts:1', 'a.ts:9', 'b.ts:2'])
@@ -461,4 +463,8 @@ test('parse shows plain text but keeps the raw line for ticking', () => {
   const [item] = parse('- [ ] **Fix** the [bug](https://x.y)')
   expect(item?.text).toBe('Fix the bug')
   expect(item?.raw).toBe('- [ ] **Fix** the [bug](https://x.y)')
+})
+
+test('a hit shows plain text', () => {
+  expect(hitsIn('a.ts', '// TODO: fix the `total` of the **cart**', ['TODO'])[0]?.text).toBe('// TODO: fix the total of the cart')
 })
