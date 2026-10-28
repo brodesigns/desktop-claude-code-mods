@@ -1,4 +1,5 @@
 import type { TodoHit, TodoSummary } from '../types'
+import { redact } from './keys'
 import { plain } from './todomd'
 
 // Pure helpers: no `$`, no state.
@@ -36,7 +37,7 @@ export const hitsIn = (file: string, text: string, markers: readonly string[]): 
   const out: TodoHit[] = []
   text.split('\n').forEach((line, i) => {
     const marker = markerIn(line, markers)
-    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(plain(line)) })
+    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(redact(plain(line))) })
   })
 
   return out
@@ -50,7 +51,7 @@ export const parseGrep = (stdout: string, markers: readonly string[], max = 5000
     const m = row.match(/^(.+?):(\d+):(.*)$/)
     if (m === null) continue
     const marker = markerIn(m[3] ?? '', markers)
-    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(plain(m[3] ?? '')) })
+    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(redact(plain(m[3] ?? ''))) })
   }
 
   return out

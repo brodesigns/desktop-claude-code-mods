@@ -11,6 +11,7 @@ import { register as projectCommands, start as startProject, view as projectView
 import { view as homeView } from './home'
 import { startTodo, todoOpened, todoTouched, view as todoView } from './todo'
 import { begin, finish, view as toolcallsView } from './toolcalls'
+import { printable } from './keys'
 import { isNarrow } from './layout'
 import { PANE } from './pane'
 import { isOn } from './settings'
@@ -46,7 +47,7 @@ async function safe($: EngineInterface, e: RenderInput, current: string, go: (id
   } catch (err) {
     const ui = $.ui.resolve(e)
     const { Text } = ui
-    const message = String(err instanceof Error ? err.message : err).slice(0, 200)
+    const message = printable(String(err instanceof Error ? err.message : err)).slice(0, 200)
 
     return card(ui, 'tab-error', 'error', [
       cardHead(ui, 'tab-error-head', <Text color="error">✗ This tab has an error</Text>),
@@ -184,7 +185,7 @@ export const register: Register = (on, options) => {
 
       return card(ui, 'pane-error', 'error', [
         cardHead(ui, 'pane-error-head', <Text color="error">✗ The cockpit could not be drawn</Text>),
-        <Text key="pane-error-text" dimColor mono size={TYPE.label} wrap="wrap">{String(err instanceof Error ? err.message : err).slice(0, 200)}</Text>,
+        <Text key="pane-error-text" dimColor mono size={TYPE.label} wrap="wrap">{printable(String(err instanceof Error ? err.message : err)).slice(0, 200)}</Text>,
       ])
     }
   })

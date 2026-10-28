@@ -36,7 +36,7 @@ const parse = (stdout: string, project: string): GitInfo => {
 // A missing git binary makes process.run throw; that counts as "no repository".
 async function git($: EngineInterface, args: string[], timeoutMs: number) {
   try {
-    return await $.process.run(['git', '--no-optional-locks', ...args], { timeoutMs })
+    return await $.process.run(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', ...args], { timeoutMs })
   } catch {
     return null
   }
@@ -88,7 +88,8 @@ async function look($: EngineInterface) {
     if (cwd !== known.cwd) {
       project = await projectOf($)
       const origin = await git($, ['remote', 'get-url', 'origin'], 5_000)
-      remote = origin !== null && origin.exitCode === 0 ? origin.stdout.trim() : ''
+      // A remote can carry a token (https://user:token@host/...): the userinfo never reaches the state.
+      remote = origin !== null && origin.exitCode === 0 ? origin.stdout.trim().replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/\s]+@/i, '$1') : ''
       // The project tab loads in any case, with the folder name when git gave nothing.
       try {
         const name = project !== '' ? project : baseName(await $.session.root())

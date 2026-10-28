@@ -24,7 +24,7 @@ for (const tab of TABS) {
     on('clock.now', () => ({ value: 1 }))
 
     for (const surface of ['terminal', 'desktop'] as const) {
-      for (const bodyColumns of [36, 80]) {
+      for (const bodyColumns of [36, 50, 80]) {
         const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface })
         expect((await ui.find({ type: 'Text', text: /Cockpit/ })) != null).toBe(true)
         expect((await ui.find({ type: 'Text', text: /has an error/ })) == null).toBe(true)
@@ -78,7 +78,7 @@ for (const tab of TABS) {
     on('clock.now', () => ({ value: 1 }))
 
     for (const surface of ['terminal', 'desktop'] as const) {
-      for (const bodyColumns of [36, 80]) {
+      for (const bodyColumns of [36, 50, 80]) {
         const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface })
         expect((await ui.find({ type: 'Text', text: /has an error/ })) == null).toBe(true)
         await ui.unmount()

@@ -1,4 +1,5 @@
 import type { TodoItem } from '../types'
+import { printable } from './keys'
 
 // Pure parsing and editing of a todo.md; no `$`, no state.
 
@@ -13,7 +14,7 @@ const clean = (line: string) => line.replace(/\r$/, '')
 // The pane shows plain text: links keep their label, bold, italic, strikethrough and code lose their marks.
 // Only the display text changes; `raw` stays the file's line, so ticking still finds it.
 export const plain = (text: string): string =>
-  text
+  printable(text)
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/(\*\*|__)(.+?)\1/g, '$2')
     .replace(/(^|[\s(])([*_])(\S(?:.*?\S)?)\2(?=[\s).,;:!?]|$)/g, '$1$3')

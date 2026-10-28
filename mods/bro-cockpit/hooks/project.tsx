@@ -4,6 +4,7 @@ import type { EngineInterface, Register, RenderInput, RenderSurface } from 'clau
 import type { Idea, ProjectInfo } from '../types'
 import { refreshCounts } from './counts'
 import { shortHash } from './hash'
+import { printable, redact } from './keys'
 import { isNarrow } from './layout'
 import { card, cardHead, emptyState, kv, legend, sectionTitle, SPACE, tile, tiles, toolbar, TYPE } from './style'
 
@@ -48,7 +49,7 @@ export async function loadProject($: EngineInterface, project: string) {
   if (has('package.json')) {
     try {
       const pkg = JSON.parse(await $.fs.read(`${root}/package.json`)) as { scripts?: Record<string, string> }
-      scripts = Object.entries(pkg.scripts ?? {}).slice(0, 10).map(([name, cmd]) => ({ name, cmd }))
+      scripts = Object.entries(pkg.scripts ?? {}).slice(0, 10).map(([name, cmd]) => ({ name: printable(name), cmd: printable(redact(String(cmd))) }))
     } catch {
       scripts = []
     }
@@ -86,7 +87,7 @@ async function persist($: EngineInterface, list: Idea[]) {
 }
 
 async function addIdea($: EngineInterface, kind: string, text: string): Promise<'empty' | 'saved' | 'none'> {
-  const clean = text.trim()
+  const clean = printable(redact(text)).trim()
   if (clean === '') return 'empty'
   const list = await read($, ideas)
   const id = list.reduce((max, i) => Math.max(max, i.id), 0) + 1
@@ -180,12 +181,14 @@ export async function view($: EngineInterface, e: RenderInput) {
           ...p.scripts.map(sc => kv(ui, `sc-${sc.name}`, sc.name, <Text dimColor mono size={TYPE.label} wrap="truncate">{sc.cmd}</Text>, narrow)),
         ])}
 
-      {sectionTitle(ui, 'ideas-title', 'Ideas and change requests', <Text dimColor size={TYPE.label}>saved for {p.project}</Text>)}
+      {sectionTitle(ui, 'ideas-title', 'Ideas and changes', <Text dimColor size={TYPE.label}>saved for {p.project}</Text>)}
       {toolbar(ui, 'idea-kinds', KINDS.map(k => (
         <Button key={`k-${k.id}`} label={`${k.icon} ${k.label}`} variant={kind === k.id ? 'primary' : 'secondary'} onPress={() => update($, kindNow, () => k.id)} />
       )))}
       {'Input' in ui ? (
-        <ui.Input key="idea-input" placeholder={kind === 'idea' ? 'New idea ...' : 'New change request ...'} submitLabel="save" onSubmit={async (v: string) => void (await addIdea($, kind, v))} />
+        <Box key="idea-form" flexDirection="column" alignItems="stretch">
+          <ui.Input key="idea-input" placeholder={kind === 'idea' ? 'New idea ...' : 'New change request ...'} submitLabel="save" rows={2} onSubmit={async (v: string) => void (await addIdea($, kind, v))} />
+        </Box>
       ) : (
         <Text dimColor size={TYPE.label}>No input field here: use /idea or /change with a text.</Text>
       )}

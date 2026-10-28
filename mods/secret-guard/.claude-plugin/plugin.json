@@ -1,6 +1,6 @@
 {
   "name": "secret-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Blocks API keys, tokens, private keys and plaintext passwords in Write, Edit, MultiEdit, NotebookEdit and Bash tool calls of Claude Code",
   "author": {
     "name": "BroDesigns"

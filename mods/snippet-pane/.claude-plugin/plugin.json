@@ -1,6 +1,6 @@
 {
   "name": "snippet-pane",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Code snippets per project: save with /snippet, a light pane with one line per snippet, insert, copy and delete; keys are redacted",
   "author": {
     "name": "BroDesigns"

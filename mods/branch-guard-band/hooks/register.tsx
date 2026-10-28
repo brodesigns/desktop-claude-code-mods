@@ -16,8 +16,9 @@ let timer: { cancel: () => void } | null = null
 async function refresh($: EngineInterface) {
   let branch: BranchName = null
   try {
-    const res = await $.process.run(['git', '--no-optional-locks', 'symbolic-ref', '--quiet', '--short', 'HEAD'], { timeoutMs: 5_000 })
-    const name = res.stdout.trim()
+    const res = await $.process.run(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', 'symbolic-ref', '--quiet', 'HEAD'], { timeoutMs: 5_000 })
+    // Without --short: with a tag of the same name, --short answers `heads/main` and the guard would miss it.
+    const name = res.stdout.trim().replace(/^refs\/heads\//, '')
     if (res.exitCode === 0 && name !== '') branch = name
   } catch {
     branch = null

@@ -3,7 +3,7 @@ import type { EngineInterface, RenderInput, ToolCallInput, ToolCallResult } from
 
 import type { Call } from '../types'
 import { noteCall, refreshCounts } from './counts'
-import { redact } from './keys'
+import { printable, redact } from './keys'
 import { isNarrow } from './layout'
 import { isFailed } from './status'
 import { card, emptyState, HEX, legend, LIVE_MAX, more, SPACE, tile, tiles, toolbar, TYPE } from './style'
@@ -81,7 +81,7 @@ export async function begin($: EngineInterface, e: ToolCallInput): Promise<Call>
   const t = await $.clock.now()
   const input = e as unknown as Record<string, unknown>
   // Secrets never reach the state: commands are redacted before they are kept or shown.
-  const full = redact(pick(input))
+  const full = printable(redact(pick(input)))
   const call: Call = {
     id: e.tool_use_id,
     tool: e.tool,
@@ -109,10 +109,10 @@ export async function finish($: EngineInterface, call: Call, ran: ToolCallResult
   const isDenied = ran.deny !== undefined
   const isError = ran.isError === true && !isDenied
   const result = (ran as { result?: unknown }).result as Record<string, unknown> | undefined
-  let note = typeof ran.deny === 'string' ? ran.deny.slice(0, 160) : ''
+  let note = typeof ran.deny === 'string' ? printable(redact(ran.deny)).slice(0, 160) : ''
   if (note === '' && result !== undefined && result !== null) {
     if (result.interrupted === true) note = 'interrupted'
-    else if (typeof result.stderr === 'string' && result.stderr.trim() !== '') note = redact(result.stderr.trim().split('\n')[0] ?? '').slice(0, 160)
+    else if (typeof result.stderr === 'string' && result.stderr.trim() !== '') note = printable(redact(result.stderr.trim().split('\n')[0] ?? '')).slice(0, 160)
   }
   await update($, calls, list => list.map(c => (c.id === call.id ? { ...c, isDone: true, isError, isDenied, ms, note } : c)))
 }

@@ -1,6 +1,6 @@
 {
   "name": "kanban-pane",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Small kanban board per project with Open, In progress and Done: add cards with /card, move and delete them in the pane",
   "author": {
     "name": "BroDesigns"

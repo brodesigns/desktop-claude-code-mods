@@ -35,7 +35,7 @@ async function setIfChanged<T>(get: () => Promise<T>, set: (value: T) => Promise
 // A missing git binary makes process.run throw; that counts as "no repository".
 async function git($: EngineInterface, args: string[]) {
   try {
-    return await $.process.run(['git', '--no-optional-locks', ...args], { timeoutMs: 5_000 })
+    return await $.process.run(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', ...args], { timeoutMs: 5_000 })
   } catch {
     return null
   }

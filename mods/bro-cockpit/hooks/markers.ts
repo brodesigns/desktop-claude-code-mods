@@ -15,7 +15,7 @@ let known = { cwd: '', top: '' }
 // A missing git binary makes process.run throw; that counts as "no repository".
 async function git($: EngineInterface, args: string[], timeoutMs = 10_000) {
   try {
-    return await $.process.run(['git', '--no-optional-locks', ...args], { timeoutMs })
+    return await $.process.run(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', ...args], { timeoutMs })
   } catch {
     return null
   }

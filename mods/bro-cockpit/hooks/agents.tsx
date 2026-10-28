@@ -4,6 +4,7 @@ import type { EngineInterface, Register, RenderInput, ToolCallInput } from 'clau
 import type { AgentRow } from '../types'
 
 import { refreshCounts } from './counts'
+import { printable, redact } from './keys'
 import { recordTurn } from './meter'
 import { SITTING, SITTING_FAILED, WORKER } from './worker'
 import { isNarrow } from './layout'
@@ -47,7 +48,7 @@ export const register: Register = on => {
     if (res.agentId !== undefined) {
       const t = await $.clock.now()
       const row: AgentRow = {
-        id: res.agentId, type: e.subagentType, description: e.description, isBackground: e.background,
+        id: res.agentId, type: e.subagentType, description: printable(redact(e.description ?? '')), isBackground: e.background,
         isDone: false, isFailed: false, tools: 0, last: '', startedAt: t, endedAt: 0, parent: e.parentAgentId ?? '',
       }
       await update($, agents, list => [...list, row].slice(-30))

@@ -76,3 +76,42 @@ test('an error inside the guard denies the call', async ($, on) => {
   const broken = await $.tool.call({ tool: 'Write', file_path: '/p/x.ts', content: 42 } as never)
   expect((broken as { deny?: string }).deny).toContain('internal error')
 })
+
+// Keyword names are built from parts so this file holds no plaintext credential for a guard to find.
+const N = { pw: 'pass' + 'word', sec: 'sec' + 'ret', tok: 'tok' + 'en', key: 'api' + 'Key' }
+const SECRET = 'Xq7' + 'Lm2' + 'Pz9' + 'Rt4'
+
+test('formats the first version missed are found', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const w = (content: string) => $.tool.call({ tool: 'Write' as const, file_path: '/p/k.ts', content })
+  const up = N.pw.toUpperCase()
+  expect((await w(`{"${N.pw}": "${SECRET}"}`)).deny).toContain('Plaintext credentials')
+  expect((await w(`DB_${up}="${SECRET}"`)).deny).toContain('Plaintext credentials')
+  expect((await w(`${N.pw}: ${SECRET}`)).deny).toContain('Plaintext credentials')
+  expect((await w(`client_${N.sec} = "${SECRET}"`)).deny).toContain('Plaintext credentials')
+  expect((await w(`u = 'postgres://admin:${SECRET}@db/app'`)).deny).toContain('Password inside a URL')
+  expect((await w(['-----BEGIN PGP', 'PRIVATE KEY BLOCK-----'].join(' '))).deny).toContain('Private key')
+  expect((await w('eyJ' + 'a'.repeat(12) + '.' + 'b'.repeat(12) + '.' + 'c'.repeat(12))).deny).toContain('JSON web token')
+  const bash = await $.tool.call({ tool: 'Bash' as const, command: `export DB_${up}=${SECRET}` })
+  expect(bash.deny).toContain('Plaintext credentials')
+})
+
+test('placeholders, references and plain words pass', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const w = (content: string) => $.tool.call({ tool: 'Write' as const, file_path: '/p/k.ts', content })
+  const ref = '$' + '{process.env.KEY}'
+  expect((await w(`{ ${N.pw}: "Passwort" }`)).deny).toBeUndefined()
+  expect((await w(`${N.tok}: "YOUR_${N.tok.toUpperCase()}_HERE"`)).deny).toBeUndefined()
+  expect((await w(`${N.key}: "${ref}"`)).deny).toBeUndefined()
+  expect((await w(`API_KEY="$` + `{API_KEY}"`)).deny).toBeUndefined()
+  expect((await w(`${N.pw} = process.env.DB_${N.pw.toUpperCase()}`)).deny).toBeUndefined()
+})
+
+test('a malformed edit list is denied, not waved through', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const broken = await $.tool.call({ tool: 'MultiEdit', file_path: '/p/x.ts', edits: 'nope' } as never)
+  expect((broken as { deny?: string }).deny).toContain('internal error')
+})

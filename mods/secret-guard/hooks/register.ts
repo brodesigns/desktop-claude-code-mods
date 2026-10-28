@@ -3,16 +3,38 @@ import type { Register } from 'claude-code'
 // Secret patterns. Only the kind of secret is ever reported, never the value.
 const PATTERNS: [RegExp, string][] = [
   [/\bsk-[A-Za-z0-9_-]{20,}/, 'API key (sk-)'],
-  [/\bsk_live_[A-Za-z0-9]{16,}/, 'Stripe key (sk_live_)'],
+  [/\b(?:sk|rk)_live_[A-Za-z0-9]{16,}/, 'Stripe key'],
   [/\bAIza[0-9A-Za-z_-]{35}/, 'Google API key'],
   [/\bgh[pousr]_[A-Za-z0-9]{30,}/, 'GitHub token'],
   [/\bgithub_pat_[A-Za-z0-9_]{40,}/, 'GitHub token'],
-  [/\bAKIA[0-9A-Z]{16}\b/, 'AWS key'],
+  [/\bglpat-[A-Za-z0-9_-]{20,}/, 'GitLab token'],
+  [/\bnpm_[A-Za-z0-9]{36}/, 'npm token'],
+  [/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/, 'AWS key'],
   [/\bxox[abprs]-[A-Za-z0-9-]{10,}/, 'Slack token'],
-  [/-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----/, 'Private key'],
-  [/\bAuthorization:\s*Bearer\s+[A-Za-z0-9._~+/=-]{20,}/i, 'Bearer token'],
-  [/\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"'\s]{8,}["']/i, 'Plaintext credentials'],
+  [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, 'JSON web token'],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY[A-Z ]*-----/, 'Private key'],
+  [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/i, 'Bearer token'],
+  [/\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@$<{]+:[^\s/:@$<{]{4,}@/i, 'Password inside a URL'],
 ]
+
+// NAME=value and name: "value" with a password-like name. Names are matched by their ending (DB_PASSWORD, client_secret),
+// the closing quote of a JSON key is allowed. A value counts only when it looks like a real secret, so placeholders,
+// variable references and plain words (a translated "password" label) pass.
+const ASSIGNMENT = /[A-Za-z0-9_-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)["']?\s*[:=]\s*["']?([^"'\s,}]{8,})/gi
+
+const looksReal = (value: string): boolean => {
+  if (/^[$<{(%]/.test(value) || /process\.env|import\.meta\.env|os\.environ|getenv|\$\{/.test(value)) return false
+  // YOUR_TOKEN_HERE, CHANGE_ME, XXXXXXXX
+  if (/^[A-Z_]+$/.test(value) || /^[xX*.\-_]+$/.test(value) || /^(?:your|change|example|placeholder|dummy|test)[-_a-z]*$/i.test(value)) return false
+  // A real secret mixes letters and digits, or is at least 12 characters long.
+  return (/[A-Za-z]/.test(value) && /\d/.test(value)) || value.length >= 12
+}
+
+const hasAssignment = (text: string): boolean => {
+  for (const m of text.matchAll(ASSIGNMENT)) if (looksReal(m[1] ?? '')) return true
+
+  return false
+}
 
 // Tests may hold fake tokens, but they build them from parts, so only examples and dependencies are skipped.
 const SKIP = /(^|\/)node_modules\/|\.env\.example$/
@@ -23,6 +45,7 @@ const problems = (text: string, path: string): string[] => {
   if (SKIP.test(path)) return []
   const kinds = new Set<string>()
   for (const [re, kind] of PATTERNS) if (re.test(text)) kinds.add(kind)
+  if (hasAssignment(text)) kinds.add('Plaintext credentials')
 
   return [...kinds].map(kind => `Secret in text: ${kind}`)
 }
@@ -49,15 +72,24 @@ function guardBash(command: string) {
 // MultiEdit and NotebookEdit are read loosely: the fields are checked at run time, not by type.
 const multiText = (e: unknown): string => {
   const edits = (e as { edits?: unknown }).edits
-  if (!Array.isArray(edits)) return ''
+  if (!Array.isArray(edits)) throw new Error('edits is not a list')
 
-  return edits.map(x => (x as { new_string?: unknown }).new_string).filter((x): x is string => typeof x === 'string').join('\n')
+  return edits
+    .map(x => {
+      const value = (x as { new_string?: unknown } | null)?.new_string
+      if (typeof value !== 'string') throw new Error('new_string is not a text')
+
+      return value
+    })
+    .join('\n')
 }
 
 const field = (e: unknown, key: string): string => {
   const v = (e as Record<string, unknown>)[key]
+  if (v === undefined) return ''
+  if (typeof v !== 'string') throw new Error(`${key} is not a text`)
 
-  return typeof v === 'string' ? v : ''
+  return v
 }
 
 // A guard that fails must not let the call through: deny with a short note unless next already ran.

@@ -1,15 +1,23 @@
 // Secret patterns. Error texts the pane keeps go through `redact` first.
 const PATTERNS: RegExp[] = [
   /\bsk-[A-Za-z0-9_-]{20,}/,
-  /\bsk_live_[A-Za-z0-9]{16,}/,
+  /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}/,
   /\bAIza[0-9A-Za-z_-]{35}/,
   /\bgh[pousr]_[A-Za-z0-9]{30,}/,
   /\bgithub_pat_[A-Za-z0-9_]{40,}/,
-  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bglpat-[A-Za-z0-9_-]{20,}/,
+  /\bnpm_[A-Za-z0-9]{36}/,
+  /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,
   /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
-  /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----/,
-  /\bAuthorization:\s*Bearer\s+[A-Za-z0-9._~+/=-]{20,}/i,
-  /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"'\s]{8,}["']/i,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
+  // The whole key block, from the BEGIN line to the END line (or the end of the text).
+  /-----BEGIN [A-Z ]*PRIVATE KEY[A-Z ]*-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY[A-Z ]*-----|$)/,
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/i,
+  // user:password inside a URL (database, git remote, registry).
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/:@]{3,}@/i,
+  /\s-u\s+[^\s:]+:[^\s]{3,}/,
+  // NAME=value and name: "value", also DB_PASSWORD, "password": "x", export API_KEY=x.
+  /[A-Za-z0-9_-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)["']?\s*[:=]\s*["']?[^"'\s,}]{8,}/i,
 ]
 
 const GLOBAL = PATTERNS.map(re => new RegExp(re.source, `${re.flags.replace('g', '')}g`))

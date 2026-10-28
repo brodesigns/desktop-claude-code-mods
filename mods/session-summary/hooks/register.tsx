@@ -32,6 +32,16 @@ let settingLanguage = 'English'
 // One update at a time; a turn that ends while one runs makes it go round once more.
 let isRunning = false
 let isDue = false
+// After a failed call the automatic tick waits (1, 2, 5, then 10 minutes); "update now" always tries.
+const BACKOFF_MS = [60_000, 120_000, 300_000, 600_000]
+let failures = 0
+let retryAt = 0
+
+async function noteFailure($: EngineInterface) {
+  retryAt = (await $.clock.now()) + (BACKOFF_MS[Math.min(failures, BACKOFF_MS.length - 1)] ?? 600_000)
+  failures += 1
+}
+
 // A permanent API error (wrong model, no access): no automatic calls until the person presses `update` or switches auto off and on.
 let isPaused = false
 // Numbers the digests, so a call removes exactly the ones it covered even when the list was trimmed meanwhile.
@@ -83,12 +93,14 @@ async function summarize($: EngineInterface) {
           isPaused = true
           await update($, told, () => ({ text: `Not updated: ${why} (${reply.error}). Check the model setting; auto paused for this session.`, tone: 'warning' as const }))
         } else {
+          await noteFailure($)
           await update($, told, () => ({ text: `Not updated: ${why}. Press "update now" to try again.`, tone: 'warning' as const }))
         }
         break
       }
       const text = parseSummary(redact(reply.text))
       if (text === '') {
+        await noteFailure($)
         await update($, told, () => ({ text: 'The model sent no usable summary.', tone: 'warning' as const }))
         break
       }
@@ -96,9 +108,12 @@ async function summarize($: EngineInterface) {
       await update($, summary, cur => ({ text, turns: (cur?.turns ?? 0) + digests.length, tokens: (cur?.tokens ?? 0) + spent }))
       // Only the digests this call covered are done; ones that arrived meanwhile stay, even if the list was trimmed.
       await update($, waiting, list => list.filter(d => d.n > lastSentN))
+      failures = 0
+      retryAt = 0
       await clearNote($)
     } while (isDue)
   } catch {
+    await noteFailure($)
     await update($, told, () => ({ text: 'Not updated: the model call failed. Press "update now" to try again.', tone: 'warning' as const }))
   } finally {
     isRunning = false
@@ -180,6 +195,7 @@ async function isPaneUp($: EngineInterface) {
 // waiting turns are caught up in one call when it opens), and enough waiting (a batch, or a quiet minute and a half).
 async function maybeSummarize($: EngineInterface) {
   if (isPaused || !(await isAutomatic($))) return
+  if ((await $.clock.now()) < retryAt) return
   const queue = await read($, waiting)
   if (queue.length === 0) return
   const hasSummary = (await read($, summary)) !== null

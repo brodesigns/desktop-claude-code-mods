@@ -66,7 +66,7 @@ export async function load($: EngineInterface) {
 let busy = false
 
 // `npm outdated` only on the person's press: it asks the npm registry, through their own npm.
-// exit 1 means "something is outdated"; a missing npm or a timeout rejects.
+// exit 1 with a list means "something is outdated"; exit 1 with an empty list is a failure (for example a registry login error), as is a higher code. A missing npm or a timeout rejects.
 export async function runCheck($: EngineInterface) {
   if (busy) return
   busy = true
@@ -78,7 +78,7 @@ export async function runCheck($: EngineInterface) {
       const res = await $.process.run(['npm', 'outdated', '--json'], { cwd: root, timeoutMs: 90_000 })
       const parsed = parseOutdated(res.stdout)
       if ('error' in parsed) result = { status: 'error', root, at: await $.clock.now(), items: [], message: parsed.error }
-      else if (res.exitCode > 1 && parsed.items.length === 0) {
+      else if (res.exitCode >= 1 && parsed.items.length === 0) {
         const line = redact(res.stderr.trim().split('\n').find(l => l.trim() !== '') ?? '').slice(0, 200)
         result = { status: 'error', root, at: await $.clock.now(), items: [], message: line !== '' ? line : `npm exited with code ${res.exitCode}.` }
       } else result = { status: 'done', root, at: await $.clock.now(), items: parsed.items.slice(0, 300), message: '' }
