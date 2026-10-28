@@ -81,7 +81,7 @@ A single pane next to your Claude Code chat that answers "what is happening in t
 - **Tool calls:** compact timeline grouped by tool, with filters, durations and details on click. Secrets are redacted before they are stored.
 - **Instruments:** context window fill, rate limit (5 hour) flame meter, session cost, cache hit rate and the latest turns.
 - **Errors:** failed tool calls in one place.
-- **Project:** project name, folder, detected stack (Next.js, WordPress, Node, PHP, Docker) and `package.json` scripts, plus ideas and change requests that are **saved per project across sessions**.
+- **Project:** project name, folder, detected stack (Next.js, WordPress, Node, PHP, Docker) and `package.json` scripts, plus ideas and change requests that are **saved per project across sessions**. One click on an idea puts its text into the prompt box.
 - **Git band:** project, branch, uncommitted changes (staged, modified, untracked) and commits to push or pull, above the prompt. Bands of other mods stay drawn beneath it.
 - **Per-tab switches:** every tab and the git band can be switched off on its own in `/config`, section `bro-cockpit` (`show_home`, `show_files`, `show_agents`, `show_calls`, `show_meter`, `show_errors`, `show_todo`, `show_project`, `show_gitband`). All are on by default. The Todo tab also reads the settings `markers` (the words it looks for, default `TODO,FIXME,HACK,XXX`) and `sessionFiles`.
 
@@ -136,7 +136,7 @@ Reload after changes with `/reload-plugins`. Uninstall with `claude plugin unins
 | Command | Effect |
 |---|---|
 | `/cockpit [home\|files\|agents\|calls\|meter\|errors\|todo\|project]` | Opens the cockpit pane, optionally on a given tab |
-| `/idea <text>` | Saves an idea for the current project |
+| `/idea <text>` | Saves an idea for the current project (click it in the Project tab to put it into the prompt box) |
 | `/change <text>` | Saves a change request for the current project |
 | `/deadline <date> [text]` | Sets the project deadline for `deadline-band` |
 | `/prompts`, `/p <name>` | Opens the prompt library, inserts a saved prompt |

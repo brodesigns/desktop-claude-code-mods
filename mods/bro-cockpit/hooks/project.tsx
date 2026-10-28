@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderInput } from 'claude-code'
+import type { EngineInterface, Register, RenderInput, RenderSurface } from 'claude-code'
 
 import type { Idea, ProjectInfo } from '../types'
 import { refreshCounts } from './counts'
@@ -107,6 +107,17 @@ async function cycle($: EngineInterface, id: number) {
   await persist($, list.map(i => (i.id === id ? { ...i, status: NEXT[i.status] ?? 'open' } : i)))
 }
 
+// Click on the idea text: into the prompt box, else onto the clipboard.
+async function useIdea($: EngineInterface, text: string, surface: RenderSurface) {
+  const box = await $.prompt.fill({ text })
+  if (box.isFilled) {
+    $.ui.toast('Idea is in the prompt box. Press Enter to send.')
+    return
+  }
+  const copied = await $.ui.copy({ text, surface })
+  $.ui.toast(copied.isCopied ? 'Prompt box unreachable. The idea is on the clipboard.' : 'Prompt box and clipboard unreachable.')
+}
+
 async function removeIdea($: EngineInterface, id: number) {
   const list = await read($, ideas)
   await persist($, list.filter(i => i.id !== id))
@@ -193,7 +204,9 @@ export async function view($: EngineInterface, e: RenderInput) {
                 i.status === 'running' ? 'warning' : 'neutral',
                 <Box key="row" alignItems="center" gap={SPACE.base}>
                   <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
-                    <Text size={TYPE.body} wrap="wrap" dimColor={i.status === 'done'} strikethrough={i.status === 'done'}>{i.text}</Text>
+                    <Button key={`use-${i.id}`} plain onPress={press => void useIdea($, i.text, press.surface)}>
+                      <Text size={TYPE.body} wrap="wrap" dimColor={i.status === 'done'} strikethrough={i.status === 'done'}>{i.text}</Text>
+                    </Button>
                   </Box>
                   <Box flexShrink={0} gap={SPACE.tight}>
                     <Button key={`st-${i.id}`} label={MARK[i.status] ?? i.status} variant="secondary" onPress={() => cycle($, i.id)} />
@@ -205,7 +218,7 @@ export async function view($: EngineInterface, e: RenderInput) {
           </Box>
         )
       })}
-      {legend(ui, 'ideas-legend', 'Click a status to change it: ○ open, ◐ running, ● done. Also via /idea and /change.')}
+      {legend(ui, 'ideas-legend', 'Click an idea to put its text into the prompt box. Click a status to change it: ○ open, ◐ running, ● done. Also via /idea and /change.')}
     </Box>
   )
 }

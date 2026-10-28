@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { hitsIn, isSkipped, parseGrep, parseMarkers, summarize } from './markerscan'
-import { append, entriesFrom, findName, parse, remove, restore } from './todomd'
+import { append, entriesFrom, findName, parse, plain, remove, restore } from './todomd'
 
 const ROOT = '/p'
 const FILE = `# Launch\n- [ ] Write the readme\n  - [ ] Add screenshots\n  note under it\n- [x] Pick a name\n- Plain bullet\n\n## Later\n1. [ ] Ship it\n`
@@ -103,7 +103,7 @@ test('parse: real-world files, CRLF, tabs, marks, bare boxes, links and emoji', 
   const file = '# Plan\r\n- [ ] **Bold** task with [a link](https://x.test) 🚀\r\n\t- [ ] tab indented\r\n- [-] dropped\r\n- [ ]\r\n-\r\n- [~] later\r\n#hashtag is no heading\r\n- [X] big X\r\n'
   const items = parse(file)
   expect(items.map(i => [i.text, i.done, i.depth])).toEqual([
-    ['**Bold** task with [a link](https://x.test) 🚀', false, 0],
+    ['Bold task with a link 🚀', false, 0],
     ['tab indented', false, 2],
     ['dropped', true, 0],
     ['later', true, 0],
@@ -449,4 +449,16 @@ test('a symlinked todo.md is shown but never written: tick, add and undo refuse'
   const after = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await after.find({ type: 'Text', text: /is a symbolic link/ })) != null).toBe(true)
   await after.unmount()
+})
+
+test('plain drops markdown marks and keeps the words', () => {
+  expect(plain('**Important:** test the `undo` button')).toBe('Important: test the undo button')
+  expect(plain('Task with a [link](https://example.com/a_b_c) and _more_')).toBe('Task with a link and more')
+  expect(plain('~~old~~ plan, 2 * 3 = 6 and snake_case_name')).toBe('old plan, 2 * 3 = 6 and snake_case_name')
+})
+
+test('parse shows plain text but keeps the raw line for ticking', () => {
+  const [item] = parse('- [ ] **Fix** the [bug](https://x.y)')
+  expect(item?.text).toBe('Fix the bug')
+  expect(item?.raw).toBe('- [ ] **Fix** the [bug](https://x.y)')
 })

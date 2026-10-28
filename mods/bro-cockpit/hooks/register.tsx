@@ -55,6 +55,71 @@ async function safe($: EngineInterface, e: RenderInput, current: string, go: (id
   }
 }
 
+async function drawPane($: EngineInterface, e: RenderInput, tabs: readonly (typeof TABS)[number][], shown: (id: string) => boolean) {
+  const ui = $.ui.resolve(e)
+  const { Box, Button, Text } = ui
+  // The head reads three atoms: the tab, the bundled counts and the git line. The lists stay with the tabs.
+  const picked = await read($, tab)
+  const current = shown(picked) ? picked : (tabs[0]?.id ?? '')
+  const c = await read($, headCounts)
+  const narrow = isNarrow(e)
+  const counts: Record<string, string> = {
+    agents: c.agentsRunning > 0 ? ` ⚙${c.agentsRunning}` : '',
+    calls: c.calls > 0 ? ` ${c.calls}` : '',
+    files: c.files > 0 ? ` ${c.files}` : '',
+    meter: c.context >= 0 ? ` ${c.context}%` : '',
+    errors: c.errors > 0 ? ` ⚠${c.errors}` : '',
+    todo: c.todoOpen > 0 ? ` ${c.todoOpen}` : '',
+    project: c.ideasOpen > 0 ? ` ${c.ideasOpen}` : '',
+  }
+  // The same label in the select and in the terminal's button row.
+  const label = (t: (typeof TABS)[number]) => `${t.icon} ${t.label}${counts[t.id] ?? ''}`
+
+  return (
+    <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
+      <Box flexDirection={narrow ? 'column' : 'row'} justifyContent="space-between" alignItems={narrow ? 'stretch' : 'center'} gap={SPACE.tight}>
+        <Box gap={SPACE.base} alignItems="center" flexShrink={0}>
+          <Text size={TYPE.heading} weight="semibold">Cockpit</Text>
+          {c.agentsRunning > 0 && (await worker($, e, narrow ? 32 : 44))}
+        </Box>
+        <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent={narrow ? 'flex-start' : 'flex-end'}>
+          {await gitLine($, e)}
+        </Box>
+      </Box>
+      {tabs.length === 0 ? (
+        <Text key="tabs-off" dimColor wrap="wrap">All tabs are off. Switch them on in /config, section bro-cockpit.</Text>
+      ) : 'Select' in ui ? (
+        <ui.Select
+          key="tab-select"
+          label="View"
+          value={current}
+          options={tabs.map(t => ({ value: t.id, label: label(t) }))}
+          onSelect={(v: string) => update($, tab, () => v)}
+        />
+      ) : (
+        <Box gap={SPACE.tight} flexWrap="wrap">
+          {tabs.map(t => (
+            <Button
+              key={`tab-${t.id}`}
+              label={label(t)}
+              variant={t.id === current ? 'primary' : 'secondary'}
+              onPress={() => update($, tab, () => t.id)}
+            />
+          ))}
+        </Box>
+      )}
+      {current !== 'home' && shown('home') && (
+        <Box key="back" alignSelf="flex-start">
+          <Button key="back-to-overview" plain onPress={() => update($, tab, () => 'home')}>
+            <Text size={TYPE.label} color="#39639E" weight="semibold">‹ Overview</Text>
+          </Button>
+        </Box>
+      )}
+      {await safe($, e, current, id => void (shown(id) && update($, tab, () => id)), shown)}
+    </Box>
+  )
+}
+
 export const register: Register = (on, options) => {
   // Only the tabs switched on in /config; the first of them stands in for a tab that was switched off.
   const tabs = TABS.filter(t => isOn(options, t.id))
@@ -110,68 +175,18 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const ui = $.ui.resolve(e)
-    const { Box, Button, Text } = ui
-    // The head reads three atoms: the tab, the bundled counts and the git line. The lists stay with the tabs.
-    const picked = await read($, tab)
-    const current = shown(picked) ? picked : (tabs[0]?.id ?? '')
-    const c = await read($, headCounts)
-    const narrow = isNarrow(e)
-    const counts: Record<string, string> = {
-      agents: c.agentsRunning > 0 ? ` ⚙${c.agentsRunning}` : '',
-      calls: c.calls > 0 ? ` ${c.calls}` : '',
-      files: c.files > 0 ? ` ${c.files}` : '',
-      meter: c.context >= 0 ? ` ${c.context}%` : '',
-      errors: c.errors > 0 ? ` ⚠${c.errors}` : '',
-      todo: c.todoOpen > 0 ? ` ${c.todoOpen}` : '',
-      project: c.ideasOpen > 0 ? ` ${c.ideasOpen}` : '',
-    }
-    // The same label in the select and in the terminal's button row.
-    const label = (t: (typeof TABS)[number]) => `${t.icon} ${t.label}${counts[t.id] ?? ''}`
+    // A draw during a resize must never end empty: any failure in the head becomes a small card.
+    try {
+      return await drawPane($, e, tabs, shown)
+    } catch (err) {
+      const ui = $.ui.resolve(e)
+      const { Text } = ui
 
-    return (
-      <Box flexDirection="column" gap={SPACE.base} padding={narrow ? 'xs' : 'sm'}>
-        <Box flexDirection={narrow ? 'column' : 'row'} justifyContent="space-between" alignItems={narrow ? 'stretch' : 'center'} gap={SPACE.tight}>
-          <Box gap={SPACE.base} alignItems="center" flexShrink={0}>
-            <Text size={TYPE.heading} weight="semibold">Cockpit</Text>
-            {c.agentsRunning > 0 && (await worker($, e, narrow ? 32 : 44))}
-          </Box>
-          <Box flexShrink={1} minWidth={0} overflow="hidden" justifyContent={narrow ? 'flex-start' : 'flex-end'}>
-            {await gitLine($, e)}
-          </Box>
-        </Box>
-        {tabs.length === 0 ? (
-          <Text key="tabs-off" dimColor wrap="wrap">All tabs are off. Switch them on in /config, section bro-cockpit.</Text>
-        ) : 'Select' in ui ? (
-          <ui.Select
-            key="tab-select"
-            label="View"
-            value={current}
-            options={tabs.map(t => ({ value: t.id, label: label(t) }))}
-            onSelect={(v: string) => update($, tab, () => v)}
-          />
-        ) : (
-          <Box gap={SPACE.tight} flexWrap="wrap">
-            {tabs.map(t => (
-              <Button
-                key={`tab-${t.id}`}
-                label={label(t)}
-                variant={t.id === current ? 'primary' : 'secondary'}
-                onPress={() => update($, tab, () => t.id)}
-              />
-            ))}
-          </Box>
-        )}
-        {current !== 'home' && shown('home') && (
-          <Box key="back" alignSelf="flex-start">
-            <Button key="back-to-overview" plain onPress={() => update($, tab, () => 'home')}>
-              <Text size={TYPE.label} color="#39639E" weight="semibold">‹ Overview</Text>
-            </Button>
-          </Box>
-        )}
-        {await safe($, e, current, id => void (shown(id) && update($, tab, () => id)), shown)}
-      </Box>
-    )
+      return card(ui, 'pane-error', 'error', [
+        cardHead(ui, 'pane-error-head', <Text color="error">✗ The cockpit could not be drawn</Text>),
+        <Text key="pane-error-text" dimColor mono size={TYPE.label} wrap="wrap">{String(err instanceof Error ? err.message : err).slice(0, 200)}</Text>,
+      ])
+    }
   })
 
   git(on, options)
