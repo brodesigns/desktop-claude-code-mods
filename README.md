@@ -101,7 +101,7 @@ The bands are small status lines above the prompt. Each one hides itself when it
 Screenshots are coming soon.
 
 <!-- Add images with descriptive alt text, for example:
-![Claude Code dashboard pane with overview tiles and attention card in the desktop app](docs/assets/overview.png)
+![Claude Code dashboard pane with overview tiles and attention card in the desktop app](docs/assets/cockpit-overview.png)
 -->
 
 ## Install Claude Code mods
