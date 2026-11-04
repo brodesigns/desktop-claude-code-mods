@@ -3,7 +3,7 @@ import type { EngineInterface, Register, RenderInput, RenderSurface } from 'clau
 
 import type { GitInfo } from '../types'
 import { branchUrl, commitsUrl } from './git-url'
-import { openTarget } from './open'
+import { openTarget, revealTarget } from './open'
 import { isNarrow } from './layout'
 import { loadProject } from './project'
 import { isOn } from './settings'
@@ -148,7 +148,8 @@ export async function line($: EngineInterface, e: RenderInput) {
 }
 
 async function openFolder($: EngineInterface) {
-  await openTarget($, await $.session.root())
+  // Shown in the file manager, never opened: a project folder that is an app bundle must not start.
+  await revealTarget($, await $.session.root())
 }
 
 // The branch on GitHub when the remote is a GitHub one; otherwise the branch name goes to the clipboard.

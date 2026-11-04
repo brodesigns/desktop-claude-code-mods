@@ -116,3 +116,42 @@ test('a malformed edit list is denied, not waved through', async ($, on) => {
   const broken = await $.tool.call({ tool: 'MultiEdit', file_path: '/p/x.ts', edits: 'nope' } as never)
   expect((broken as { deny?: string }).deny).toContain('internal error')
 })
+
+test('a path with .. cannot hide a source file inside node_modules', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const gh = 'gh' + 'p_' + 'a'.repeat(36)
+  const w = (file_path: string) => $.tool.call({ tool: 'Write' as const, file_path, content: `const t = '${gh}'` })
+  expect((await w('/p/node_modules/../src/config.ts')).deny).toContain('GitHub token')
+  expect((await w('/p/node_modules/pkg/index.js')).deny).toBeUndefined()
+})
+
+test('ordinary code that reads a secret is not blocked', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const w = (content: string) => $.tool.call({ tool: 'Write' as const, file_path: '/p/auth.ts', content })
+  expect((await w(`const ${N.tok} = req.headers.authorization`)).deny).toBeUndefined()
+  expect((await w(`const ${N.key} = config.${N.key}`)).deny).toBeUndefined()
+  expect((await w(`${N.pw}: hashed${N.pw[0]?.toUpperCase()}${N.pw.slice(1)},`)).deny).toBeUndefined()
+  expect((await w(`access_${N.tok}=response.data.access_${N.tok}`)).deny).toBeUndefined()
+  expect((await w(`${N.tok} = getToken()`)).deny).toBeUndefined()
+})
+
+test('more secret formats are found', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const w = (content: string) => $.tool.call({ tool: 'Write' as const, file_path: '/p/k.ts', content })
+  expect((await w('123456789:' + 'AA' + 'b'.repeat(33))).deny).toContain('Telegram bot token')
+  expect((await w('https://hooks.' + 'slack.com/services/' + 'T'.repeat(24))).deny).toContain('Slack webhook')
+  expect((await w('Authorization: ' + 'Basic ' + 'dXNlcjpwYXNz' + 'QUJD')).deny).toContain('Basic authorization')
+  expect((await w('hf_' + 'a'.repeat(34))).deny).toContain('Hugging Face token')
+})
+
+test('a very long run of name characters does not stall the guard', async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const started = Date.now()
+  await $.tool.call({ tool: 'Write' as const, file_path: '/p/blob.txt', content: 'a'.repeat(100_000) })
+  await $.tool.call({ tool: 'Write' as const, file_path: '/p/blob.txt', content: '-'.repeat(100_000) })
+  expect(Date.now() - started).toBeLessThan(2000)
+})

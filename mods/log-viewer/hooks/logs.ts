@@ -21,7 +21,7 @@ const cutLine = (line: string) => (line.length > MAX_LINE ? `${line.slice(0, MAX
 
 // Text to lines: redacted, trailing blank lines dropped, each line capped.
 export const toLines = (text: string, err: boolean): LogLine[] => {
-  const lines = redact(text.replace(/\r\n?/g, '\n')).split('\n')
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').map(l => redact(l.slice(0, MAX_LINE * 2)))
   while (lines.length > 0 && (lines[lines.length - 1] ?? '').trim() === '') lines.pop()
 
   return lines.map(t => ({ t: cutLine(t), err }))
@@ -32,7 +32,7 @@ export const capLines = (lines: LogLine[]): { lines: LogLine[]; cut: number } =>
   lines.length > MAX_LINES ? { lines: lines.slice(-MAX_LINES), cut: lines.length - MAX_LINES } : { lines, cut: 0 }
 
 export const cleanCommand = (command: unknown) => {
-  const text = redact(String(command ?? '')).trim()
+  const text = redact(String(command ?? '').slice(0, MAX_COMMAND * 2)).trim()
 
   return text.length > MAX_COMMAND ? `${text.slice(0, MAX_COMMAND - 1)}…` : text
 }

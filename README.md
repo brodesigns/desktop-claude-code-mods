@@ -100,7 +100,7 @@ The bands are small status lines above the prompt. Each one hides itself when it
 
 ## Screenshots
 
-The cockpit pane next to the chat, shown with demo data:
+The cockpit pane next to the chat:
 
 <table>
   <tr>
@@ -207,6 +207,7 @@ Mods run with your permissions. The mods make no network requests of their own, 
 - The mod API of Claude Code is early access and can change.
 - A pane can only use the slots the engine offers. The session list in the sidebar and the built-in session overview cannot be changed by a mod.
 - The secret guard only knows the patterns it has been given. Unknown formats and split or encoded values pass through. Placeholders and references to variables pass on purpose.
+- Git runs with `core.fsmonitor` off, but a repository whose own `.git/config` or `.git/info/attributes` is hostile (an extracted archive or shared folder) can still make any git command run code, as it can for Claude Code itself. Open such folders with care.
 - The mods are tested with `claude plugin test`. The author has not checked every mod by eye in the desktop app.
 
 More in [docs/07-limits.md](docs/07-limits.md).

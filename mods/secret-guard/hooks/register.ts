@@ -13,33 +13,47 @@ const PATTERNS: [RegExp, string][] = [
   [/\bxox[abprs]-[A-Za-z0-9-]{10,}/, 'Slack token'],
   [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, 'JSON web token'],
   [/-----BEGIN [A-Z ]*PRIVATE KEY[A-Z ]*-----/, 'Private key'],
+  [/\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b/, 'Telegram bot token'],
+  [/https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/]{20,}/, 'Slack webhook'],
+  [/https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]{20,}/, 'Discord webhook'],
+  [/\bAuthorization:\s*Basic\s+[A-Za-z0-9+/=]{12,}/i, 'Basic authorization'],
+  [/\bhf_[A-Za-z0-9]{30,}/, 'Hugging Face token'],
+  [/\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/, 'SendGrid key'],
+  [/\bAccountKey=[A-Za-z0-9+/=]{30,}/, 'Azure storage key'],
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/i, 'Bearer token'],
 ]
 
 // NAME=value and name: "value" with a password-like name. Names are matched by their ending (DB_PASSWORD, client_secret),
-// the closing quote of a JSON key is allowed. A value counts only when it looks like a real secret, so placeholders,
-// variable references and plain words (a translated "password" label) pass.
-const ASSIGNMENT = /[A-Za-z0-9_-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)["']?\s*[:=]\s*["']?([^"'\s,}]{8,})/gi
+// the closing quote of a JSON key is allowed. The name prefix is bounded: an unbounded one is quadratic on a long run of
+// name characters. Group 1 is the opening quote of the value, group 2 the value.
+const ASSIGNMENT = /[A-Za-z0-9_-]{0,64}(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)["']?\s*[:=]\s*(["']?)([^"'\s,}]{8,})/gi
 
-const looksReal = (value: string): boolean => {
+// A value counts only when it looks like a real secret, so placeholders, variable references, plain words and code
+// (`req.headers.authorization`, `hashedPassword`, `getToken()`) pass.
+const looksReal = (value: string, isQuoted: boolean): boolean => {
   if (/^[$<{(%]/.test(value) || /process\.env|import\.meta\.env|os\.environ|getenv|\$\{/.test(value)) return false
   // YOUR_TOKEN_HERE, CHANGE_ME, XXXXXXXX
   if (/^[A-Z_]+$/.test(value) || /^[xX*.\-_]+$/.test(value) || /^(?:your|change|example|placeholder|dummy|test)[-_a-z]*$/i.test(value)) return false
-  // A real secret mixes letters and digits, or is at least 12 characters long.
-  return (/[A-Za-z]/.test(value) && /\d/.test(value)) || value.length >= 12
+  const hasMix = /[A-Za-z]/.test(value) && /\d/.test(value)
+  // Unquoted, a value is code unless it mixes letters and digits and is no member or call expression (a.b.c, f(x), a[0]).
+  if (!isQuoted) return hasMix && !/[.()[\]]/.test(value)
+  // Quoted: a dotted identifier chain without digits is a string of code, not a secret.
+  if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(value) && !/\d/.test(value)) return false
+
+  return hasMix || value.length >= 12
 }
 
 // user:password inside a URL; the password goes through the same check, so `user:pass@host` in a doc passes.
 const URL_CREDENTIALS = /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:([^\s/:@]{4,})@/gi
 
 const hasUrlPassword = (text: string): boolean => {
-  for (const m of text.matchAll(URL_CREDENTIALS)) if (looksReal(m[1] ?? '')) return true
+  for (const m of text.matchAll(URL_CREDENTIALS)) if (looksReal(m[1] ?? '', true)) return true
 
   return false
 }
 
 const hasAssignment = (text: string): boolean => {
-  for (const m of text.matchAll(ASSIGNMENT)) if (looksReal(m[1] ?? '')) return true
+  for (const m of text.matchAll(ASSIGNMENT)) if (looksReal(m[2] ?? '', (m[1] ?? '') !== '')) return true
 
   return false
 }
@@ -47,10 +61,22 @@ const hasAssignment = (text: string): boolean => {
 // Tests may hold fake tokens, but they build them from parts, so only examples and dependencies are skipped.
 const SKIP = /(^|\/)node_modules\/|\.env\.example$/
 
+// `/p/node_modules/../src/a.ts` is a source file: resolve `.` and `..` before the skip rule looks at the path.
+const normalize = (path: string): string => {
+  const out: string[] = []
+  for (const part of path.split(/[\\/]+/)) {
+    if (part === '' || part === '.') continue
+    if (part === '..') out.pop()
+    else out.push(part)
+  }
+
+  return out.join('/')
+}
+
 const HINT = 'Secrets belong in an env file or a password manager'
 
 const problems = (text: string, path: string): string[] => {
-  if (SKIP.test(path)) return []
+  if (SKIP.test(normalize(path))) return []
   const kinds = new Set<string>()
   for (const [re, kind] of PATTERNS) if (re.test(text)) kinds.add(kind)
   if (hasAssignment(text)) kinds.add('Plaintext credentials')

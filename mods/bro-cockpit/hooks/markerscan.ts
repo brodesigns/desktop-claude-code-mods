@@ -25,6 +25,9 @@ const markerIn = (line: string, markers: readonly string[]): string | null => {
   return best === null ? null : best.marker
 }
 
+// A repository line can be a minified megabyte: only the start of it is ever shown, so only the start is processed.
+const cap = (text: string) => text.slice(0, 600)
+
 export const clipLine = (text: string, max = 120) => {
   const flat = text.replace(/\s+/g, ' ').trim()
 
@@ -37,7 +40,7 @@ export const hitsIn = (file: string, text: string, markers: readonly string[]): 
   const out: TodoHit[] = []
   text.split('\n').forEach((line, i) => {
     const marker = markerIn(line, markers)
-    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(redact(plain(line))) })
+    if (marker !== null) out.push({ file, line: i + 1, marker, text: clipLine(redact(plain(cap(line)))) })
   })
 
   return out
@@ -51,7 +54,7 @@ export const parseGrep = (stdout: string, markers: readonly string[], max = 5000
     const m = row.match(/^(.+?):(\d+):(.*)$/)
     if (m === null) continue
     const marker = markerIn(m[3] ?? '', markers)
-    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(redact(plain(m[3] ?? ''))) })
+    if (marker !== null) out.push({ file: m[1] ?? '', line: Number(m[2]), marker, text: clipLine(redact(plain(cap(m[3] ?? '')))) })
   }
 
   return out

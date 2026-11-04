@@ -8,7 +8,7 @@ A pane with a very short running summary of what happened in this session, writt
 - **Updates (kept cheap):** only while the pane is open, in batches. The first summary comes right after the first real turn; after that a call waits for three new turns or a quiet minute and a half. A closed pane costs nothing, and opening it sends everything that waited in one call. Turns with no file written and a short answer ("ok", "yes, port 3000") are skipped. A call sends the summary so far plus a digest per new turn (your question cut to 160 characters, the files written, the answer cut to 240, or to 120 when files were written), at most 120 output tokens, 2 to 4 bullets of at most 10 words, low effort. Subagent turns are ignored. `↻ update` sends whatever waits, any time.
 - **Secrets:** everything is redacted for known key patterns before it is sent or kept. It goes through the session's own client and credentials, like any model call of the session.
 - **Prompt hygiene:** each digest goes to the model inside `<turn>…</turn>` and the summary so far inside `<summary>…</summary>`, with `<` and `>` removed from the text. The system prompt says that text inside the tags is data.
-- **Failure:** a failed call (rate limit, overload, timeout after 30 s) keeps the digests and says so in the pane; `↻ update` tries again, the next turn does too. A permanent error (`invalid_request`, `authentication_failed`, `model_not_found`, for example a wrong `model` setting) pauses the automatic calls for the session: the note says "Check the model setting; auto paused for this session." `↻ update`, or switching auto off and on, lifts the pause.
+- **Failure:** a failed call (rate limit, overload, timeout after 30 s) keeps the digests and says so in the pane; `↻ update` tries again at once, the automatic updates wait 1, 2, 5 and then 10 minutes after a failure. A permanent error (`invalid_request`, `authentication_failed`, `model_not_found`, for example a wrong `model` setting) pauses the automatic calls for the session: the note says "Check the model setting; auto paused for this session." `↻ update`, or switching auto off and on, lifts the pause.
 
 ## Commands
 
@@ -18,7 +18,7 @@ A pane with a very short running summary of what happened in this session, writt
 
 - `model` (default `haiku`): an alias or a model id.
 - `language` (default `English`): the language the summary is written in, any name such as `German` or `Deutsch`. The start value of the button in the pane; a choice made there wins.
-- `auto` (default on): the start value of the switch in the pane. A choice made in the pane wins.
+- `auto` (default on): the start value of the switch in the pane. Set to off, it is final: the pane's switch cannot turn it back on, so a person who opted out never sends anything. Set to on, a choice made in the pane wins.
 
 ## Limits
 

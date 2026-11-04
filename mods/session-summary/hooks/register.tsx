@@ -165,11 +165,18 @@ async function restate($: EngineInterface, language: string) {
   }
 }
 
+// `auto: false` in the settings is final: a choice made earlier in the pane never turns it back on.
 async function isAutomatic($: EngineInterface): Promise<boolean> {
+  if (!isAuto) return false
+
   return (await read($, autoOn)) ?? isAuto
 }
 
 async function toggleAuto($: EngineInterface) {
+  if (!isAuto) {
+    $.ui.toast('Auto is switched off in the settings (/config, session-summary).')
+    return
+  }
   const next = !(await isAutomatic($))
   isPaused = false
   await update($, autoOn, () => next)
@@ -210,7 +217,7 @@ async function recordTurn($: EngineInterface, answer: string) {
   await update($, lastAsk, () => '')
   await update($, lastFiles, () => [])
   if (isTrivial(files, answer)) return
-  const digest = digestTurn(ask, files, redact(answer))
+  const digest = digestTurn(ask, files, redact(answer.slice(0, 4000)))
   turnNo += 1
   const n = turnNo
   lastTurnAt = await $.clock.now()
@@ -251,7 +258,7 @@ export const register: Register = (on, options) => {
 
   // What the person asked: kept until the turn ends. Typed commands are no work to summarise.
   on('prompt.submit', async ($, e, next) => {
-    if (e.command === undefined) await update($, lastAsk, () => clip(redact(e.text), ASK_MAX))
+    if (e.command === undefined) await update($, lastAsk, () => clip(redact(e.text.slice(0, ASK_MAX * 4)), ASK_MAX))
 
     return next(e)
   })

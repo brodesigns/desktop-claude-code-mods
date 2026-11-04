@@ -13,7 +13,8 @@ export const isTemplate = (name: string) => /^\.env\.(example|sample|template|tp
 export const isUnread = (name: string) => /^\.env\.(keys|vault|me)$/i.test(name)
 
 export const parseVariables = (raw: string): string[] => {
-  const names = raw.split(',').map(n => n.trim()).filter(n => /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(n))
+  // A name that looks secret (PASSWORD, TOKEN, KEY ...) is refused: the band would show its value.
+  const names = raw.split(',').map(n => n.trim()).filter(n => /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(n) && !/pass|pwd|secret|token|key|credential|auth/i.test(n))
   const unique = [...new Set(names)]
 
   return unique.length > 0 ? unique : [...DEFAULT_VARIABLES]

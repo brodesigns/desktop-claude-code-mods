@@ -25,3 +25,17 @@ test('printable drops colour codes and control characters, keeps text and tabs',
   expect(printable('a\u0007b\u0000c\u007fd\u009be')).toBe('abcde')
   expect(printable('tab\there')).toBe('tab\there')
 })
+
+test('redact stays fast on long runs of name characters', () => {
+  const started = Date.now()
+  redact('a'.repeat(100_000))
+  redact('-'.repeat(100_000))
+  redact('0123456789abcdef'.repeat(6_000))
+  expect(Date.now() - started).toBeLessThan(2000)
+})
+
+test('the new formats are masked', () => {
+  expect(redact('123456789:' + 'AA' + 'b'.repeat(33))).toBe('[secret removed]')
+  expect(redact('Authorization: ' + 'Basic ' + 'dXNlcjpwYXNz' + 'QUJD')).toBe('[secret removed]')
+  expect(redact('hf_' + 'a'.repeat(34))).toBe('[secret removed]')
+})

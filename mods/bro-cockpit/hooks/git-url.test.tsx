@@ -49,7 +49,7 @@ test('the band: project opens the folder, branch opens GitHub, no GitHub remote 
   expect(copies).toEqual(['git push'])
   await ui.press({ key: 'gitband-behind' })
   expect(opened).toEqual([
-    ['open', ROOT],
+    ['open', '-R', ROOT],
     ['open', 'https://github.com/acme/app/tree/main'],
     ['open', 'https://github.com/acme/app/commits/main'],
   ])

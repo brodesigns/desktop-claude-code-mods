@@ -468,3 +468,11 @@ test('parse shows plain text but keeps the raw line for ticking', () => {
 test('a hit shows plain text', () => {
   expect(hitsIn('a.ts', '// TODO: fix the `total` of the **cart**', ['TODO'])[0]?.text).toBe('// TODO: fix the total of the cart')
 })
+
+test('a huge line from a repository is cut before it is processed', () => {
+  const started = Date.now()
+  const line = '- [ ] ' + ' *a *'.repeat(40_000)
+  expect(parse(line)[0]?.text.length).toBeLessThan(700)
+  expect(hitsIn('min.js', 'TODO ' + '['.repeat(2000) + 'a('.repeat(50_000), ['TODO'])[0]?.text.length).toBeLessThan(130)
+  expect(Date.now() - started).toBeLessThan(2000)
+})

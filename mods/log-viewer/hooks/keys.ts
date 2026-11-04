@@ -17,7 +17,15 @@ const PATTERNS: RegExp[] = [
   /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/:@]{3,}@/i,
   /\s-u\s+[^\s:]+:[^\s]{3,}/,
   // NAME=value and name: "value", also DB_PASSWORD, "password": "x", export API_KEY=x.
-  /[A-Za-z0-9_-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)["']?\s*[:=]\s*["']?[^"'\s,}]{8,}/i,
+  /\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b/,
+  /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/]{20,}/,
+  /https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]{20,}/,
+  /\bAuthorization:\s*Basic\s+[A-Za-z0-9+/=]{12,}/i,
+  /\bhf_[A-Za-z0-9]{30,}/,
+  /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/,
+  /\bAccountKey=[A-Za-z0-9+/=]{30,}/,
+  // The name prefix is bounded: an unbounded `[A-Za-z0-9_-]*` is quadratic on a long run of such characters.
+  /[A-Za-z0-9_-]{0,64}(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)["']?\s*[:=]\s*["']?[^"'\s,}]{8,}/i,
 ]
 
 const GLOBAL = PATTERNS.map(re => new RegExp(re.source, `${re.flags.replace('g', '')}g`))

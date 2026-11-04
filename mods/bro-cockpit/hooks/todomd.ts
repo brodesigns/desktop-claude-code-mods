@@ -14,7 +14,7 @@ const clean = (line: string) => line.replace(/\r$/, '')
 // The pane shows plain text: links keep their label, bold, italic, strikethrough and code lose their marks.
 // Only the display text changes; `raw` stays the file's line, so ticking still finds it.
 export const plain = (text: string): string =>
-  printable(text)
+  printable(text.slice(0, 2000))
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/(\*\*|__)(.+?)\1/g, '$2')
     .replace(/(^|[\s(])([*_])(\S(?:.*?\S)?)\2(?=[\s).,;:!?]|$)/g, '$1$3')
@@ -38,7 +38,7 @@ export const parse = (text: string): TodoItem[] => {
     // A bare `- [ ]` or `-` has no text: nothing to show.
     if (m === null || (m[3] ?? '').trim() === '') return
     // `[ ]` is open; any other mark (`x`, `X`, `-`, `~`) is a finished or dropped entry.
-    out.push({ index, raw: line, text: plain((m[3] ?? '').trim()), depth: Math.min(3, Math.floor(indentOf(line) / 2)), section, done: m[2] !== undefined && m[2] !== ' ' })
+    out.push({ index, raw: line, text: plain((m[3] ?? '').trim().slice(0, 600)), depth: Math.min(3, Math.floor(indentOf(line) / 2)), section, done: m[2] !== undefined && m[2] !== ' ' })
   })
 
   return out
