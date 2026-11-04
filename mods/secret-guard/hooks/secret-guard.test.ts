@@ -103,6 +103,7 @@ test('placeholders, references and plain words pass', async ($, on) => {
   const w = (content: string) => $.tool.call({ tool: 'Write' as const, file_path: '/p/k.ts', content })
   const ref = '$' + '{process.env.KEY}'
   expect((await w(`{ ${N.pw}: "Passwort" }`)).deny).toBeUndefined()
+  expect((await w('u = ' + 'postgres://user:' + 'pass' + '@host/db')).deny).toBeUndefined()
   expect((await w(`${N.tok}: "YOUR_${N.tok.toUpperCase()}_HERE"`)).deny).toBeUndefined()
   expect((await w(`${N.key}: "${ref}"`)).deny).toBeUndefined()
   expect((await w(`API_KEY="$` + `{API_KEY}"`)).deny).toBeUndefined()

@@ -4,13 +4,16 @@ A guard hook for Claude Code that stops Claude from writing credentials in plain
 
 **What is blocked:** `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` when the content matches one of these patterns:
 
-- API keys (`sk-`, Stripe `sk_live_`, Google, AWS), GitHub and Slack tokens, bearer tokens in an Authorization header
-- private keys (PEM header)
-- plaintext credentials such as `password = "..."`, `api_key: '...'` or `token = "..."`
+- API keys (`sk-`, Stripe `sk_live_` and `rk_live_`, Google, AWS), GitHub, GitLab, npm and Slack tokens, JSON web tokens, bearer tokens
+- private keys (PEM header, also PGP blocks)
+- a real-looking password inside a connection URL (the part between the colon and the at sign)
+- plaintext credentials such as `password = "..."`, a JSON `"password"` key, `DB_PASSWORD=...`, `export API_KEY=...` or `token: '...'`
+
+A value counts only when it looks real: placeholders (`YOUR_TOKEN_HERE`), references (`${API_KEY}`, `process.env.KEY`) and short plain words pass.
 
 The message names only the kind of secret, never the value. A match is blocked on every attempt. If the guard itself fails, the call is blocked to be safe. Only `node_modules/` and `.env.example` are skipped. That includes `.env` files: the guard also stops Claude from writing a real key into one, so put real values there yourself.
 
-**Limits:** only known patterns are detected. Unknown formats, split or encoded values and values read from variables (`$TOKEN`) pass through. Input you type yourself in the terminal and files written by other programs are not seen by the guard.
+**Limits:** only known patterns are detected. Unknown formats, split or encoded values and values read from variables (`$TOKEN`) pass through on purpose. Input you type yourself in the terminal and files written by other programs are not seen by the guard.
 
 A helper, not guaranteed protection.
 

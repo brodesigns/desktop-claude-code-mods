@@ -14,7 +14,6 @@ const PATTERNS: [RegExp, string][] = [
   [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, 'JSON web token'],
   [/-----BEGIN [A-Z ]*PRIVATE KEY[A-Z ]*-----/, 'Private key'],
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/i, 'Bearer token'],
-  [/\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@$<{]+:[^\s/:@$<{]{4,}@/i, 'Password inside a URL'],
 ]
 
 // NAME=value and name: "value" with a password-like name. Names are matched by their ending (DB_PASSWORD, client_secret),
@@ -28,6 +27,15 @@ const looksReal = (value: string): boolean => {
   if (/^[A-Z_]+$/.test(value) || /^[xX*.\-_]+$/.test(value) || /^(?:your|change|example|placeholder|dummy|test)[-_a-z]*$/i.test(value)) return false
   // A real secret mixes letters and digits, or is at least 12 characters long.
   return (/[A-Za-z]/.test(value) && /\d/.test(value)) || value.length >= 12
+}
+
+// user:password inside a URL; the password goes through the same check, so `user:pass@host` in a doc passes.
+const URL_CREDENTIALS = /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:([^\s/:@]{4,})@/gi
+
+const hasUrlPassword = (text: string): boolean => {
+  for (const m of text.matchAll(URL_CREDENTIALS)) if (looksReal(m[1] ?? '')) return true
+
+  return false
 }
 
 const hasAssignment = (text: string): boolean => {
@@ -46,6 +54,7 @@ const problems = (text: string, path: string): string[] => {
   const kinds = new Set<string>()
   for (const [re, kind] of PATTERNS) if (re.test(text)) kinds.add(kind)
   if (hasAssignment(text)) kinds.add('Plaintext credentials')
+  if (hasUrlPassword(text)) kinds.add('Password inside a URL')
 
   return [...kinds].map(kind => `Secret in text: ${kind}`)
 }
