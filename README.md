@@ -219,7 +219,7 @@ Mods run with your permissions. The mods make no network requests of their own, 
 
 ## Contributing and license
 
-Issues and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under the [MIT License](LICENSE).
+Issues and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under the [MIT License](LICENSE). Built by [BroDesigns](https://brodesigns.de).
 
 ---
 
