@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/social-preview.png" alt="Claude Code Mods: panes, bands and a guard that stops leaked secrets, by BroDesigns" width="100%"></p>
+
 # Claude Code Desktop Mods: Session Dashboard, Prompt Bands, Panes and Guards
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
