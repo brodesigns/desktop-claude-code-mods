@@ -1,4 +1,4 @@
-# 03 Rules and pitfalls
+# 02 Rules and pitfalls
 
 Everything here happened while building the mods in this repo. `validate` reports most of it right away.
 
@@ -26,6 +26,7 @@ Everything here happened while building the mods in this repo. `validate` report
 - **The terminal surface has no `Svg`.** Always provide a text stand-in (`⚒`, `☕`, `⚙`).
 - **Lists: newest at the bottom.** Showing the newest on top pushes everything down with every new entry, and scrolling in the pane jumps. Append in order and add a button `$.ui.scroll({ in: <paneId>, to: 'end' })`.
 - **Groups need stable keys.** Take the key from the oldest element, not from the newest.
+- **One invalid prop blanks the whole pane.** The engine validates the returned tree. A fractional percentage width (`'48.5%'`), `alignSelf="stretch"`, a control character in a text or a tree deeper than 32 levels makes it skip the whole `ui.render` hook, and the pane shows "has not drawn". Use whole percentages, strip control characters from text that comes from outside (`printable()` in `hooks/keys.ts`), and mount every layout at several widths in a test (`views.test.tsx` uses 36, 50 and 80 columns).
 - **Less is calmer:** one line per entry in fixed columns (`Box width={...}`), details on click. Bars, stripes and borders around every row looked messy.
 - **All panes in one pane with tabs**, the current tab in the atom `cockpitTab`.
 

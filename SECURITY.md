@@ -2,7 +2,7 @@
 
 ## Report a security problem
 
-Please do not report security problems in a public issue. Send an email to `contact@brodesigns.de` and describe which mod is affected, which Claude Code version you use and how to reproduce the problem.
+Please do not report security problems in a public issue. Use [private vulnerability reporting](https://github.com/brodesigns/desktop-claude-code-mods/security/advisories/new) on GitHub or send an email to `contact@brodesigns.de`, and describe which mod is affected, which Claude Code version you use and how to reproduce the problem.
 
 We reply as soon as possible and credit you in the changelog if you like.
 

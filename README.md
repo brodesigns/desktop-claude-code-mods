@@ -212,15 +212,10 @@ Mods run with your permissions. The mods make no network requests of their own, 
 - Git runs with `core.fsmonitor` off, but a repository whose own `.git/config` or `.git/info/attributes` is hostile (an extracted archive or shared folder) can still make any git command run code, as it can for Claude Code itself. Open such folders with care.
 - The mods are tested with `claude plugin test`. The author has not checked every mod by eye in the desktop app.
 
-More in [docs/07-limits.md](docs/07-limits.md).
-
 ## Documentation
 
 1. [docs/01-basics.md](docs/01-basics.md): structure, types, testing, installing, developing
-2. [docs/02-api.md](docs/02-api.md): events, the `$` interface, state, elements
-3. [docs/03-rules-and-pitfalls.md](docs/03-rules-and-pitfalls.md): rules and pitfalls found while building
-4. [docs/05-design-ui.md](docs/05-design-ui.md): layout, colors, SVG animation
-5. [docs/07-limits.md](docs/07-limits.md): what mods cannot do
+2. [docs/02-rules-and-pitfalls.md](docs/02-rules-and-pitfalls.md): rules and pitfalls found while building
 
 ## Contributing and license
 
