@@ -34,6 +34,8 @@ declare module 'claude-code' {
       // Built-in tool statistics, this session and all sessions.
       sessionTools: Shaped<ToolStats>
       allTools: Shaped<ToolStats>
+      // true while the "About these numbers" note is open
+      usageInfo: boolean
       // true after the first press of "Reset all"
       usageConfirm: boolean
     }

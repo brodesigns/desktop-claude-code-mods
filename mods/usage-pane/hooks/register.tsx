@@ -36,6 +36,7 @@ const view = atom({ plugin: 'usage-pane', key: 'usageView' } as const, 'used')
 const tab = atom({ plugin: 'usage-pane', key: 'usageTab' } as const, 'skill')
 const scope = atom({ plugin: 'usage-pane', key: 'usageScope' } as const, 'session')
 const sortBy = atom({ plugin: 'usage-pane', key: 'usageSort' } as const, 'most')
+const info = atom({ plugin: 'usage-pane', key: 'usageInfo' } as const, false)
 const confirmReset = atom({ plugin: 'usage-pane', key: 'usageConfirm' } as const, false)
 
 // Counts the hits in the session and, store first, over all sessions (another session's counts stay).
@@ -80,6 +81,15 @@ async function resetAll($: EngineInterface) {
   await update($, allTools, () => ({}))
   await update($, confirmReset, () => false)
 }
+
+// The limits of the numbers, shown behind "About these numbers".
+const NOTES = [
+  'Counting starts when this mod is installed, so a new entry can look unused for a while.',
+  'Commands from plugins and your own folders are listed as skills. A command that is code, not a prompt, is listed too and may show as unused.',
+  'Tokens are estimates from names and descriptions (about 4 characters a token). Tool schemas and tools loaded on demand are not counted.',
+  'A plugin counts only through its skills and its own MCP servers. A plugin with only hooks never shows.',
+  'The lists of what is installed come from the engine and may differ from what you see in the app. Press refresh after connecting a server.',
+]
 
 type Ui = ReturnType<EngineInterface['ui']['resolve']>
 type Cell = { text: string; width: number; color?: string; dim?: boolean; bold?: boolean }
@@ -185,6 +195,7 @@ export const register: Register = on => {
     const sc = await read($, scope)
     const sort = await read($, sortBy)
     const armed = await read($, confirmReset)
+    const infoOpen = await read($, info)
     const all = await read($, allItems)
     const items: UsageItems = sc === 'all' ? all : await read($, sessionItems)
     const have = await read($, installed)
@@ -291,6 +302,18 @@ export const register: Register = on => {
           </Box>
         )}
         {body as never}
+        <Box key="info-row">
+          <Button key="info" plain onPress={() => update($, info, o => !o)}>
+            <Text size={TYPE.label} color={ACCENT}>{infoOpen ? 'ⓘ hide notes' : 'ⓘ About these numbers'}</Text>
+          </Button>
+        </Box>
+        {infoOpen && (
+          <Box key="notes" flexDirection="column" gap={SPACE.tight} borderStyle="round" overflow="hidden" borderColor="subtle" paddingX="sm" paddingY="xs">
+            {NOTES.map((n, i) => (
+              <Text key={`n${i}`} dimColor size={TYPE.label} wrap="wrap">{`• ${n}`}</Text>
+            ))}
+          </Box>
+        )}
         {sc === 'all' && (v === 'used' || v === 'tools') &&
           actions(ui, 'tools-row', [
             <Button key="reset" label={armed ? 'Really reset all counts?' : 'Reset all'} variant="secondary" onPress={() => resetAll($)} />,

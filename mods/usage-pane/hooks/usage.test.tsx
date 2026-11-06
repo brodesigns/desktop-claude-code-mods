@@ -205,3 +205,16 @@ test('the Unused, Context and Tools views read the inventory and the statistics'
     await ui.unmount()
   }
 })
+
+test('the notes open and close behind one button', async ($, on) => {
+  on('clock.now', () => ({ value: 1 }))
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /Counting starts when this mod is installed/ })) == null).toBe(true)
+    await ui.press({ key: 'info' })
+    expect((await ui.find({ type: 'Text', text: /Counting starts when this mod is installed/ })) != null).toBe(true)
+    await ui.press({ key: 'info' })
+    expect((await ui.find({ type: 'Text', text: /Counting starts when this mod is installed/ })) == null).toBe(true)
+    await ui.unmount()
+  }
+})
