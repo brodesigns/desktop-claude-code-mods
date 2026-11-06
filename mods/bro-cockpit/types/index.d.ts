@@ -12,6 +12,17 @@ export type TodoHit = { file: string; line: number; marker: string; text: string
 // in file and line order, and the folder the files are relative to.
 export type TodoSummary = { counts: TodoCount[]; files: string[]; fileCount: number; hits: TodoHit[]; root: string }
 
+export type UsageKind = 'skill' | 'plugin' | 'connector'
+// One thing that was used: how often, when first and when last (epoch ms).
+export type UsageEntry = { kind: UsageKind; name: string; n: number; first: number; last: number }
+// Entries by `kind:name`.
+export type UsageItems = Record<string, UsageEntry>
+// Something installed: a skill (or command), a connector (MCP server) or a plugin, with a rough token estimate.
+export type InstalledItem = { kind: UsageKind; name: string; tokens: number; plugin?: string }
+// What one built-in tool did: calls, failed calls, calls refused by a hook, total time (ms).
+export type ToolStat = { name: string; n: number; failed: number; denied: number; ms: number }
+export type ToolStats = Record<string, ToolStat>
+
 export type GitInfo = {
   project: string
   // The `origin` remote as git spells it; '' without one. Only used to build links.
@@ -110,6 +121,22 @@ declare module 'claude-code' {
       todoUndo: TodoUndo | null
       todoMarkers: TodoSummary | null
       todoAdding: boolean
+      // Usage tab: this session's counts, all sessions (copy of the plugin store), what is installed, built-in tool stats.
+      usageSession: Shaped<UsageItems>
+      usageAll: Shaped<UsageItems>
+      usageInstalled: Shaped<InstalledItem[]>
+      usageToolsSession: Shaped<ToolStats>
+      usageToolsAll: Shaped<ToolStats>
+      // 'used', 'unused', 'context' or 'tools'
+      usageView: string
+      // 'skill', 'plugin' or 'connector'
+      usageKind: string
+      // 'session' or 'all'
+      usageScope: string
+      // 'most' or 'least'
+      usageSort: string
+      usageInfo: boolean
+      usageConfirm: boolean
     }
   }
 }

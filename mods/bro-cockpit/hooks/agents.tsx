@@ -10,6 +10,7 @@ import { SITTING, SITTING_FAILED, WORKER } from './worker'
 import { isNarrow } from './layout'
 import { card, cardHead, emptyState, line, LIVE_MAX, more, SPACE, statusDot, tile, tiles, TONE, toolbar, TYPE } from './style'
 import type { Tone } from './style'
+import { flushUsage } from './usagetab'
 
 const agents = atom({ plugin: 'bro-cockpit', key: 'agentList' } as const, [])
 const now = atom({ plugin: 'bro-cockpit', key: 'agentNow' } as const, 0)
@@ -63,6 +64,11 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     await recordTurn($, e)
+    try {
+      await flushUsage($)
+    } catch {
+      // Tried again at the next turn.
+    }
     if (e.agentId !== undefined) {
       const t = await $.clock.now()
       await update($, agents, patch(e.agentId, a => ({ ...a, isDone: true, isFailed: e.reason === 'error' || e.reason === 'refusal', isAborted: e.isAborted, endedAt: t })))

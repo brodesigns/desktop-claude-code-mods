@@ -8,7 +8,7 @@ const PANE = {
   props: { title: 'Cockpit', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
 } as const
 
-const TABS = ['home', 'files', 'agents', 'calls', 'meter', 'errors', 'todo', 'project'] as const
+const TABS = ['home', 'files', 'agents', 'calls', 'meter', 'errors', 'todo', 'project', 'usage'] as const
 
 type OnLike = (event: string, hook: (_: unknown, e: unknown) => unknown) => void
 
@@ -65,6 +65,11 @@ const FILLED: Record<string, unknown> = {
   meter: { percent: 91, tokens: 182_000, window: 200_000, usd: 1.5, limits: [{ kind: 'five_hour', percent: 40, resetsAt: '' }, { kind: 'seven_day', percent: 88, resetsAt: '' }] },
   turnStats: [{ at: 1, ms: 70_000, input: 10, output: 20, cacheRead: 30, cacheWrite: 5, isAgent: false }],
   projectInfo: { project: 'demo', root: '~/demo', kinds: ['Node'], scripts: [{ name: 'test', cmd: LONG }], key: 'project:demo:abc' },
+  usageSession: { 'skill:a-long-skill-name-that-fits-nowhere': { kind: 'skill', name: 'a-long-skill-name-that-fits-nowhere-in-a-narrow-pane', n: 3, first: 1, last: 1 } },
+  usageAll: { 'skill:x': { kind: 'skill', name: 'x', n: 2, first: 1, last: 1 } },
+  usageInstalled: [{ kind: 'skill', name: 'x', tokens: 1200 }, { kind: 'skill', name: 'never-used', tokens: 90 }],
+  usageToolsSession: { Bash: { name: 'Bash', n: 4, failed: 1, denied: 1, ms: 400 } },
+  usageToolsAll: { Bash: { name: 'Bash', n: 4, failed: 1, denied: 1, ms: 400 } },
   ideaList: [{ id: 1, kind: 'idea', text: LONG, status: 'running', at: 1 }],
 }
 
@@ -119,7 +124,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 
   test(`every tab switched off leaves a hint (${surface})`, {
-    options: { show_home: false, show_files: false, show_agents: false, show_calls: false, show_meter: false, show_errors: false, show_todo: false, show_project: false },
+    options: { show_home: false, show_files: false, show_agents: false, show_calls: false, show_meter: false, show_errors: false, show_todo: false, show_project: false, show_usage: false },
   }, async ($, on) => {
     emptyState(on as never, 'home')
     const ui = await $.ui.mount({ ...PANE, surface })

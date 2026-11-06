@@ -1,6 +1,6 @@
 {
   "name": "bro-cockpit",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Dashboard pane for Claude Code in the desktop app: overview, files read and changed, subagent tree, tool calls, context and rate limit meter, errors and project ideas, plus a git status band above the prompt",
   "author": {
     "name": "BroDesigns"
@@ -66,6 +66,12 @@
       "type": "boolean",
       "title": "Project tab",
       "description": "Show the Project tab in the cockpit",
+      "default": true
+    },
+    "show_usage": {
+      "type": "boolean",
+      "title": "Usage tab",
+      "description": "Show the Usage tab in the cockpit and count the skills, plugins, connectors and tools used. Off: nothing is counted",
       "default": true
     },
     "markers": {

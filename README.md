@@ -36,7 +36,7 @@ One marketplace, 15 mods: **1 dashboard, 1 guard, 5 bands, 8 panes**. Every mod 
 
 #### `bro-cockpit`: one pane that shows what is happening in the session
 
-Answers "what is going on right now?" at a glance. Eight tabs: Overview, Files (read and changed), Subagents, Tool calls, Instruments (context window, 5-hour limit, cost), Errors, Todo (your `todo.md` and TODO/FIXME markers in code) and Project (stack, scripts, ideas and change requests saved per project). It also adds a git line above the prompt. Every tab can be switched off.
+Answers "what is going on right now?" at a glance. Nine tabs: Overview, Files (read and changed), Subagents, Tool calls, Instruments (context window, 5-hour limit, cost), Errors, Todo (your `todo.md` and TODO/FIXME markers in code) Project (stack, scripts, ideas and change requests saved per project) and Usage (which skills, plugins, connectors and tools were used, what was never used, what it costs in context; the same as `usage-pane`, with its own counts). It also adds a git line above the prompt. Every tab can be switched off.
 
 - **You see:** a pane with tabs next to the chat, and a git line (branch, uncommitted changes, commits to push or pull) above the prompt.
 - **Command:** `/cockpit`, `/idea <text>`, `/change <text>`

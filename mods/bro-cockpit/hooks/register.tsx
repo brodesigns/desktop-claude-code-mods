@@ -11,6 +11,7 @@ import { register as projectCommands, start as startProject, view as projectView
 import { view as homeView } from './home'
 import { startTodo, todoOpened, todoTouched, view as todoView } from './todo'
 import { begin, finish, view as toolcallsView } from './toolcalls'
+import { countUsage, register as usage, startUsage, usageView } from './usagetab'
 import { printable } from './keys'
 import { isNarrow } from './layout'
 import { PANE } from './pane'
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'errors', icon: '⚠', label: 'Errors' },
   { id: 'todo', icon: '☐', label: 'Todo' },
   { id: 'project', icon: '▣', label: 'Project' },
+  { id: 'usage', icon: '◧', label: 'Usage' },
 ] as const
 const tab = atom({ plugin: 'bro-cockpit', key: 'cockpitTab' } as const, 'home')
 const headCounts = atom({ plugin: 'bro-cockpit', key: 'headCounts' } as const, EMPTY_COUNTS)
@@ -42,6 +44,7 @@ async function safe($: EngineInterface, e: RenderInput, current: string, go: (id
       case 'errors': return await errorsView($, e)
       case 'todo': return await todoView($, e)
       case 'project': return await projectView($, e)
+      case 'usage': return await usageView($, e)
       default: return null
     }
   } catch (err) {
@@ -127,13 +130,14 @@ export const register: Register = (on, options) => {
   const shown = (id: string) => tabs.some(t => t.id === id)
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cockpit', description: 'Open the cockpit pane: /cockpit [home|files|agents|calls|meter|errors|todo|project]' })
+    await $.command.register({ name: 'cockpit', description: 'Open the cockpit pane: /cockpit [home|files|agents|calls|meter|errors|todo|project|usage]' })
     $.ui.open({ id: PANE, title: 'Cockpit' }).catch(() => undefined)
     await startGit($)
     await startAgents($)
     await startMeter($)
     await startProject($)
     await startTodo($, String(options.markers ?? ''), options.sessionFiles !== false)
+    if (shown('usage')) await startUsage($)
     await refreshCounts($)
 
     return next(e)
@@ -156,16 +160,19 @@ export const register: Register = (on, options) => {
     await countTool($, e)
     // The call count moves now, not when a long call ends.
     await refreshCounts($)
+    const started = await $.clock.now()
     let ran: ToolCallResult
     try {
       ran = await next(e)
     } catch (err) {
+      if (shown('usage')) await countUsage($, e.tool, null, (await $.clock.now()) - started)
       // The row must not stay "running" when the call itself failed.
       await finish($, call, { isError: true } as unknown as ToolCallResult)
       await refreshCounts($)
       throw err
     }
     await finish($, call, ran)
+    if (shown('usage')) await countUsage($, e.tool, ran, (await $.clock.now()) - started)
     await track($, e, ran)
     // Display only, nobody waits for these: a `git grep` or `git status` must not delay the tool result.
     todoTouched($, e, ran).catch(() => undefined)
@@ -194,4 +201,5 @@ export const register: Register = (on, options) => {
   meter(on, options)
   agents(on, options)
   projectCommands(on, options)
+  usage(on, options)
 }
