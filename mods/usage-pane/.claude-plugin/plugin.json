@@ -1,0 +1,19 @@
+{
+  "name": "usage-pane",
+  "version": "0.1.0",
+  "description": "Pane that counts which skills, plugins and connectors (MCP servers) are used, in this session and over all sessions, to find the ones worth removing",
+  "author": {
+    "name": "BroDesigns"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "repository": "https://github.com/brodesigns/desktop-claude-code-mods",
+  "keywords": [
+    "claude-code",
+    "pane",
+    "usage",
+    "skills",
+    "mcp"
+  ],
+  "types": "./types/index.d.ts"
+}

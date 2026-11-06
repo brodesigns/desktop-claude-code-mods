@@ -69,6 +69,11 @@
       "name": "dependency-pane",
       "source": "./mods/dependency-pane",
       "description": "Pane with the project's dependencies from package.json, requirements.txt, pyproject.toml and composer.json, checked with npm outdated at the push of a button"
+    },
+    {
+      "name": "usage-pane",
+      "source": "./mods/usage-pane",
+      "description": "Pane that counts which skills, plugins and connectors (MCP servers) are used, in this session and over all sessions, to find the ones worth removing"
     }
   ]
 }

@@ -52,6 +52,7 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 | [`kanban-pane`](mods/kanban-pane) | Small kanban board per project with Open, In progress and Done | `/kanban`, `/card` |
 | [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search | `/logs` |
 | [`dependency-pane`](mods/dependency-pane) | Dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`, checked with `npm outdated` at the push of a button | `/deps` |
+| [`usage-pane`](mods/usage-pane) | Counts which skills, plugins and connectors (MCP servers) are used, in this session and over all sessions, to find the ones worth removing | `/toolusage` |
 
 ## Contents
 
@@ -132,7 +133,7 @@ claude plugin marketplace add brodesigns/desktop-claude-code-mods
 claude plugin install <mod>@desktop-claude-code-mods
 ```
 
-Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `session-summary`, `kanban-pane`, `log-viewer`, `dependency-pane`.
+Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `session-summary`, `kanban-pane`, `log-viewer`, `dependency-pane`, `usage-pane`.
 
 Example: `claude plugin install bro-cockpit@desktop-claude-code-mods`.
 
