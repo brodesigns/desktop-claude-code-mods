@@ -23,7 +23,9 @@ export function buildInstalled(tools: ToolInfo[], commands: CommandInfo[]): Inst
     if (c.source !== 'plugin' && c.source !== 'user') continue
     const name = clean(c.name)
     // This mod's own command is code, not a skill.
-    if (name === '' || name === 'toolusage' || seen.has(name)) continue
+    // A plugin's skills are named `plugin:skill`; a bare name from a plugin is a code command, not context.
+    const isCode = c.source === 'plugin' && c.plugin !== undefined && !c.name.includes(':')
+    if (name === '' || name === 'toolusage' || isCode || seen.has(name)) continue
     seen.add(name)
     const tokens = estimate(`${c.name} ${c.description}`)
     const plugin = c.plugin === undefined ? undefined : clean(c.plugin)
@@ -35,8 +37,12 @@ export function buildInstalled(tools: ToolInfo[], commands: CommandInfo[]): Inst
     if (!t.mcp) continue
     const hits = mcpHits(t.name, known)
     const conn = hits.find(h => h.kind === 'connector')
-    if (conn === undefined) continue
     const tokens = estimate(`${t.name} ${t.description}`)
+    if (conn === undefined) {
+      const owner = hits.find(h => h.kind === 'plugin')
+      if (owner !== undefined) plugins.set(owner.name, (plugins.get(owner.name) ?? 0) + tokens)
+      continue
+    }
     const old = connectors.get(conn.name)
     const plugin = hits.find(h => h.kind === 'plugin')?.name
     connectors.set(conn.name, { kind: 'connector', name: conn.name, tokens: (old?.tokens ?? 0) + tokens, ...(plugin === undefined ? {} : { plugin }) })

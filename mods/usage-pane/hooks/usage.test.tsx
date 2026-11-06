@@ -15,7 +15,7 @@ test('MCP tool names give the connector, and the plugin for a plugin server', ()
   expect(mcpHits('mcp__github__get_file')).toEqual([{ kind: 'connector', name: 'github' }])
   expect(mcpHits('mcp__claude_ai_Gmail__search')).toEqual([{ kind: 'connector', name: 'claude.ai Gmail' }])
   expect(mcpHits('mcp__plugin_acme_browser__open')).toEqual([
-    { kind: 'connector', name: 'browser' },
+    { kind: 'connector', name: 'browser (acme)' },
     { kind: 'plugin', name: 'acme' },
   ])
   expect(mcpHits('Bash')).toEqual([])
@@ -73,6 +73,7 @@ test('skills and MCP calls are counted, saved in the store, and shown in the pan
     return { value: undefined }
   })
   on('clock.now', () => ({ value: 5_000_000 }))
+  on('turn.complete', () => ({ text: '' }))
   on('skill.prompt', (_, e) => ({ text: e.text }))
   on('tool.call', () => ({ result: 'ok' }))
 
@@ -82,6 +83,9 @@ test('skills and MCP calls are counted, saved in the store, and shown in the pan
   await $.tool.call({ tool: 'mcp__github__get_file' })
   await $.tool.call({ tool: 'Bash', command: 'ls' })
 
+  // Nothing is written per call; the turn's end writes it.
+  expect(store.usage).toBeUndefined()
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   const saved = store.usage as Record<string, { n: number }>
   expect(saved['skill:commit']?.n).toBe(2)
   expect(saved['plugin:acme']?.n).toBe(1)
@@ -128,21 +132,22 @@ test('installed things: skills, connectors and plugins with a token estimate; bu
     ],
     [
       { name: '/init'.slice(1), description: 'builtin', source: 'builtin' },
-      { name: 'review', description: 'a'.repeat(80), source: 'plugin', plugin: 'acme' },
+      { name: 'acme:review', description: 'a'.repeat(80), source: 'plugin', plugin: 'acme' },
+      { name: 'cockpit', description: 'code command', source: 'plugin', plugin: 'acme' },
       { name: 'mine', description: 'b', source: 'user' },
       { name: 'prompt-x', description: 'c', source: 'mcp' },
     ],
   )
   const names = list.map(x => `${x.kind}:${x.name}`).sort()
-  expect(names).toEqual(['connector:browser', 'connector:github', 'plugin:acme', 'skill:mine', 'skill:review'])
+  expect(names).toEqual(['connector:browser (acme)', 'connector:github', 'plugin:acme', 'skill:acme:review', 'skill:mine'])
   expect(list.find(x => x.name === 'github')?.tokens).toBe(estimate('mcp__github__get_file ' + 'x'.repeat(396)) + estimate('mcp__github__list_prs ' + 'y'.repeat(396)))
   // The plugin carries its skill and its server.
   const acme = list.find(x => x.kind === 'plugin')
-  expect(acme?.tokens).toBe((list.find(x => x.name === 'review')?.tokens ?? 0) + (list.find(x => x.name === 'browser')?.tokens ?? 0))
+  expect(acme?.tokens).toBe((list.find(x => x.name === 'acme:review')?.tokens ?? 0) + (list.find(x => x.name === 'browser (acme)')?.tokens ?? 0))
   expect(tokenText(340)).toBe('~340')
   expect(tokenText(1234)).toBe('~1.2k')
   // A plugin skill is found under its bare name and under plugin:name.
-  const review = list.find(x => x.name === 'review')!
+  const review = list.find(x => x.name === 'acme:review')!
   expect(usedCount(bump({}, skillHits('acme:review'), 1), review)).toBe(1)
   expect(usedCount(bump({}, skillHits('review', 'acme'), 1), review)).toBe(1)
   // A skill of the same bare name from elsewhere is another skill.
@@ -225,10 +230,16 @@ test('the notes open and close behind one button', async ($, on) => {
 
 test('a server name with an underscore is cut at the known plugin, odd tool names are plain entries', () => {
   expect(mcpHits('mcp__plugin_acme_my_server__x', ['acme'])).toEqual([
-    { kind: 'connector', name: 'my_server' },
+    { kind: 'connector', name: 'my_server (acme)' },
     { kind: 'plugin', name: 'acme' },
   ])
-  expect(mcpHits('mcp__plugin_my-plug_srv__x', ['my-plug'])[1]).toEqual({ kind: 'plugin', name: 'my-plug' })
+  // A hyphen stays a hyphen, so a hyphenated plugin with an underscored server is cut right.
+  expect(mcpHits('mcp__plugin_my-plug_my_srv__x', ['my-plug'])).toEqual([
+    { kind: 'connector', name: 'my_srv (my-plug)' },
+    { kind: 'plugin', name: 'my-plug' },
+  ])
+  // A tool a plugin registered itself belongs to the plugin, not to a connector.
+  expect(mcpHits('mcp__plugin-authoring__scan', ['plugin-authoring'])).toEqual([{ kind: 'plugin', name: 'plugin-authoring' }])
   let s = bumpTool({}, '__proto__', 'ok', 1)
   s = bumpTool(s, 'constructor', 'ok', 1)
   expect(Object.values(s).map(x => x.n)).toEqual([1, 1])
@@ -287,4 +298,27 @@ test('Reset all needs a second press and Cancel disarms it', async ($, on) => {
   await ui.press({ key: 'reset' })
   expect(Object.keys(store.usage as object).length).toBe(0)
   await ui.unmount()
+})
+
+test('counts reach the store once per turn, merged with what another session wrote', async ($, on) => {
+  const store: Record<string, unknown> = {}
+  let writes = 0
+  on('store.get', (_, e) => ({ value: store[e.key] }))
+  on('store.set', (_, e) => {
+    writes++
+    store[e.key] = JSON.parse(JSON.stringify(e.value))
+    return { value: undefined }
+  })
+  on('clock.now', () => ({ value: 7 }))
+  on('turn.complete', () => ({ text: '' }))
+  on('tool.call', () => ({ result: 'ok' }))
+  for (let i = 0; i < 5; i++) await $.tool.call({ tool: 'Read', file_path: '/x' })
+  expect(writes).toBe(0)
+  // Another session saved its own count meanwhile.
+  store.toolstats = { 't:Read': { name: 'Read', n: 10, failed: 0, denied: 0, ms: 0 } }
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  expect((store.toolstats as Record<string, { n: number }>)['t:Read']?.n).toBe(15)
+  const before = writes
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't2', reason: 'answer' })
+  expect(writes).toBe(before)
 })

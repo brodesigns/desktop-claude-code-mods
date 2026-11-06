@@ -13,8 +13,8 @@ export const clean = (text: string): string =>
 
 export const keyOf = (kind: UsageKind, name: string) => `${kind}:${name}`
 
-// MCP names spell every character outside letters and digits as `_`.
-const norm = (text: string) => text.replace(/[^A-Za-z0-9]/g, '_')
+// MCP names spell every character outside letters, digits, `_` and `-` as `_`.
+const norm = (text: string) => text.replace(/[^A-Za-z0-9_-]/g, '_')
 
 // `mcp__server__tool`: the connector (server) and, for a plugin's own server
 // (`plugin_<plugin>_<server>`), the plugin that ships it. `known` are plugin names the caller knows;
@@ -26,9 +26,17 @@ export function mcpHits(tool: string, known: string[] = []): Hit[] {
   const match = known
     .filter(k => k !== '' && server.startsWith(`plugin_${norm(k)}_`))
     .sort((a, b) => b.length - a.length)[0]
-  if (match !== undefined) return [{ kind: 'connector', name: clean(server.slice(`plugin_${norm(match)}_`.length)) }, { kind: 'plugin', name: clean(match) }]
+  // A tool a plugin registered itself (`mcp__<plugin>__<tool>`) is the plugin's, not a connector.
+  const self = known.find(k => k !== '' && norm(k) === server)
+  if (self !== undefined) return [{ kind: 'plugin', name: clean(self) }]
+  // A plugin's own server is named with its plugin, so two plugins with a `browser` stay apart.
+  if (match !== undefined) {
+    const srv = server.slice(`plugin_${norm(match)}_`.length)
+
+    return [{ kind: 'connector', name: clean(`${srv} (${match})`) }, { kind: 'plugin', name: clean(match) }]
+  }
   const own = /^plugin_(.+)_([^_]+)$/.exec(server)
-  if (own !== null) return [{ kind: 'connector', name: clean(own[2] ?? '') }, { kind: 'plugin', name: clean(own[1] ?? '') }]
+  if (own !== null) return [{ kind: 'connector', name: clean(`${own[2] ?? ''} (${own[1] ?? ''})`) }, { kind: 'plugin', name: clean(own[1] ?? '') }]
 
   return [{ kind: 'connector', name: clean(server.replace(/^claude_ai_/, 'claude.ai ').replace(/_/g, ' ')) }]
 }

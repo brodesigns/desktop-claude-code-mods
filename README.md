@@ -187,7 +187,7 @@ The hooks, bands and commands work in both. The panes draw graphics in the deskt
 
 ### What do the mods access on my machine?
 
-Programs that mods run locally: `git` (`bro-cockpit`, `branch-guard-band`, `deadline-band`, `daily-band`); `open` and `xdg-open` on a click (`bro-cockpit`: project folder, GitHub branch page, a file shown in the file manager; `env-band`: an env file shown in the file manager; `limit-band`: the usage page in your browser); and `npm outdated` only on a button press (`dependency-pane`). `secret-guard` runs nothing. Every program runs as an argument list, never through a shell. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals, the summary language) stays in the Claude Code plugin store on your machine. The one mod that sends data to a model is `session-summary`, see [Security and privacy](#security-and-privacy).
+Programs that mods run locally: `git` (`bro-cockpit`, `branch-guard-band`, `deadline-band`, `daily-band`); `open` and `xdg-open` on a click (`bro-cockpit`: project folder, GitHub branch page, a file shown in the file manager; `env-band`: an env file shown in the file manager; `limit-band`: the usage page in your browser); and `npm outdated` only on a button press (`dependency-pane`). `secret-guard` runs nothing. Every program runs as an argument list, never through a shell. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals, the summary language, the usage counts of `usage-pane`) stays in the Claude Code plugin store on your machine. The one mod that sends data to a model is `session-summary`, see [Security and privacy](#security-and-privacy).
 
 ### Can I use only the secret guard?
 

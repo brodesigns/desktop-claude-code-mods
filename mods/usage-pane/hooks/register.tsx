@@ -48,33 +48,68 @@ function inOrder(job: () => Promise<void>): Promise<void> {
   return run
 }
 
-// Counts the hits in the session and, store first, over all sessions (another session's counts stay).
+// Counts waiting to reach the store. A call only changes the (in-memory) state; the store is written
+// once per turn, at the end of the session, or when this many are waiting.
+type PendingTool = { name: string; outcome: Outcome; ms: number }
+const FLUSH_AT = 40
+let pendingHits: { hits: Hit[]; at: number }[] = []
+let pendingTools: PendingTool[] = []
+
+// Counts the hits in this session and in the all-sessions state.
 async function record($: EngineInterface, hits: Hit[]) {
   if (hits.length === 0) return
   const now = await $.clock.now()
   await update($, sessionItems, cur => bump(cur, hits, now))
-  await inOrder(async () => {
-    const total = bump(asItems(await $.store.get(STORE_KEY)), hits, now)
-    await $.store.set(STORE_KEY, total)
-    await update($, allItems, () => total)
-  })
+  await update($, allItems, cur => bump(cur, hits, now))
+  pendingHits.push({ hits, at: now })
+  if (pendingHits.length + pendingTools.length >= FLUSH_AT) await flush($)
 }
 
 // One finished call of a built-in tool.
 async function recordTool($: EngineInterface, name: string, outcome: Outcome, ms: number) {
   await update($, sessionTools, cur => bumpTool(cur, name, outcome, ms))
+  await update($, allTools, cur => bumpTool(cur, name, outcome, ms))
+  pendingTools.push({ name, outcome, ms })
+  if (pendingHits.length + pendingTools.length >= FLUSH_AT) await flush($)
+}
+
+// Merges the waiting counts into the store: read it fresh, so another session's counts stay.
+async function flush($: EngineInterface) {
+  const hits = pendingHits
+  const tools = pendingTools
+  pendingHits = []
+  pendingTools = []
+  if (hits.length === 0 && tools.length === 0) return
   await inOrder(async () => {
-    const total = bumpTool(asToolStats(await $.store.get(TOOLS_KEY)), name, outcome, ms)
-    await $.store.set(TOOLS_KEY, total)
-    await update($, allTools, () => total)
+    try {
+      if (hits.length > 0) {
+        let total = asItems(await $.store.get(STORE_KEY))
+        for (const h of hits) total = bump(total, h.hits, h.at)
+        await $.store.set(STORE_KEY, total)
+        await update($, allItems, () => total)
+      }
+      if (tools.length > 0) {
+        let total = asToolStats(await $.store.get(TOOLS_KEY))
+        for (const t of tools) total = bumpTool(total, t.name, t.outcome, t.ms)
+        await $.store.set(TOOLS_KEY, total)
+        await update($, allTools, () => total)
+      }
+    } catch (err) {
+      // Keep what was not saved for the next try (capped).
+      pendingHits = [...hits, ...pendingHits].slice(-FLUSH_AT * 4)
+      pendingTools = [...tools, ...pendingTools].slice(-FLUSH_AT * 4)
+      throw err
+    }
   })
 }
 
 async function load($: EngineInterface) {
-  const stored = asItems(await $.store.get(STORE_KEY))
-  await update($, allItems, () => stored)
-  const tools = asToolStats(await $.store.get(TOOLS_KEY))
-  await update($, allTools, () => tools)
+  await inOrder(async () => {
+    const stored = asItems(await $.store.get(STORE_KEY))
+    await update($, allItems, () => stored)
+    const tools = asToolStats(await $.store.get(TOOLS_KEY))
+    await update($, allTools, () => tools)
+  })
 }
 
 // What is installed, from the engine's own lists. Written only when it differs.
@@ -92,6 +127,8 @@ async function disarm($: EngineInterface) {
 async function resetAll($: EngineInterface) {
   const armed = await read($, confirmReset)
   if (!armed) return update($, confirmReset, () => true)
+  pendingHits = []
+  pendingTools = []
   await inOrder(async () => {
     await $.store.set(STORE_KEY, {})
     await $.store.set(TOOLS_KEY, {})
@@ -104,7 +141,7 @@ async function resetAll($: EngineInterface) {
 // The limits of the numbers, shown behind "About these numbers".
 const NOTES = [
   'Counting starts when this mod is installed, so a new entry can look unused for a while.',
-  'Commands from plugins and your own folders are listed as skills. A command that is code, not a prompt, is listed too and may show as unused.',
+  'Skills and prompt commands are listed. Commands a plugin registers in code are left out.',
   'Tokens are estimates from names and descriptions (about 4 characters a token). Tool schemas and tools loaded on demand are not counted.',
   'A plugin counts only through its skills and its own MCP servers. A plugin with only hooks never shows.',
   'Refused means refused by a hook. A call you reject at the permission prompt may show as failed.',
@@ -161,7 +198,28 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('turn.complete', async ($, e, next) => {
+    try {
+      await flush($)
+    } catch {
+      // Tried again at the next turn.
+    }
+
+    return next(e)
+  })
+
+  on('session.end', async ($, e, next) => {
+    try {
+      await flush($)
+    } catch {
+      // The session is ending; the counts of this turn are lost.
+    }
+
+    return next(e)
+  })
+
   on('command.run', { command: 'toolusage' }, async $ => {
+    await disarm($).catch(() => undefined)
     try {
       await refresh($)
     } catch {
@@ -219,9 +277,10 @@ export const register: Register = on => {
     const sort = await read($, sortBy)
     const armed = await read($, confirmReset)
     const infoOpen = await read($, info)
-    const all = await read($, allItems)
-    const items: UsageItems = sc === 'all' ? all : await read($, sessionItems)
-    const have = await read($, installed)
+    const stock = v === 'unused' || v === 'context'
+    const all: UsageItems = stock || (v === 'used' && sc === 'all') ? await read($, allItems) : {}
+    const items: UsageItems = v !== 'used' ? {} : sc === 'all' ? all : await read($, sessionItems)
+    const have: InstalledItem[] = stock ? await read($, installed) : []
     const now = await $.clock.now()
     const narrow = isNarrow(e as unknown as RenderInput)
     const width = columns(e as unknown as RenderInput)
@@ -318,7 +377,7 @@ export const register: Register = on => {
         {v !== 'tools' && (
           <Box key="tabs" gap={SPACE.base} flexWrap="wrap">
             {TABS.map(x => (
-              <Button key={`tab-${x.kind}`} plain onPress={() => update($, tab, () => x.kind)}>
+              <Button key={`tab-${x.kind}`} plain onPress={() => disarm($).then(() => update($, tab, () => x.kind))}>
                 <Text size={TYPE.label} weight={x.kind === current.kind ? 'bold' : 'regular'} color={x.kind === current.kind ? ACCENT : undefined}>{`${x.label} ${kindCount(x.kind)}`}</Text>
               </Button>
             ))}

@@ -18,7 +18,8 @@ Installation: `claude plugin install usage-pane@desktop-claude-code-mods`, detai
 Limits:
 
 - It counts only from the moment it is installed and only what it sees, so a new entry can look unused for a while.
-- Slash commands from plugins and your own folders are listed as skills; a command that is code (not a prompt) is listed too and may show as unused.
+- Skills and prompt commands from plugins and your own folders are listed; commands a plugin registers in code (bare names) are left out.
+- The counts are kept in memory per call and written to the store once per turn and at the end of the session, so a crash can lose the last turn.
 - The token numbers are estimates from names and descriptions. Tool schemas and tools loaded on demand are not counted.
 - Plugins count only through their skills and own MCP servers; a plugin that only adds hooks never shows.
-- It keeps at most 300 counts, 400 installed entries and 80 tools. Only names and numbers are stored, never arguments or output.
+- It keeps at most 300 counts, up to 200 skills, 200 connectors and 200 plugins and 80 tools. Only names and numbers are stored, never arguments or output.
