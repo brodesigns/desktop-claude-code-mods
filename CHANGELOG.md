@@ -1,5 +1,9 @@
 # Changelog
 
+## Fixes for the first ten issues (versions raised)
+
+- `bro-cockpit` 0.1.12, `kanban-pane` 0.1.4, `session-summary` 0.1.8, `prompt-library` 0.1.5, `snippet-pane` 0.1.5, `env-band`, `limit-band`, `branch-guard-band`, `daily-band` 0.1.4: the fixes for the ten issues (merged idea saves, column cap, no model call on a language switch, caught promises, and more) reach installed copies only with these versions.
+
 ## First public release (mods are at 0.1.3 to 0.1.11)
 
 What changed since the internal first version described at the end of this file.

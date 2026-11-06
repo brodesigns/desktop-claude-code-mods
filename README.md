@@ -6,15 +6,15 @@
 ![Claude Code](https://img.shields.io/badge/Claude_Code-mods_(early_access)-D97757)
 ![Tested with](https://img.shields.io/badge/tested_with-Claude_Code_2.1.308-blue)
 ![Model tokens](https://img.shields.io/badge/model_tokens-one_mod_only-success)
-![Mods](https://img.shields.io/badge/mods-13-informational)
+![Mods](https://img.shields.io/badge/mods-15-informational)
 
 **Plugins (mods) for Claude Code in the Claude desktop app.** Add a live session dashboard pane next to the chat, small status bands above the prompt (git, branch warning, environment, usage limits, deadline, daily totals), panes for prompts, snippets, a kanban board, Bash logs and dependencies, and a hook that stops Claude from writing API keys and passwords into files or shell commands. Mods run in the Claude Code plugin engine, not in the model, so they cost no extra tokens, with one deliberate exception named in [Security and privacy](#security-and-privacy): `session-summary` calls a small model.
 
 > **Not an official Anthropic project.** Claude and Claude Code are trademarks of Anthropic. This repository is not affiliated with or endorsed by Anthropic.
 
-## All 13 mods
+## All 15 mods
 
-One marketplace, 13 mods: **1 dashboard, 1 guard hook, 5 bands, 6 panes**. Every mod is its own plugin, so you install only the ones you want. Each has its own README in `mods/<name>/` with all commands and settings.
+One marketplace, 15 mods: **1 dashboard, 1 guard hook, 5 bands, 8 panes**. Every mod is its own plugin, so you install only the ones you want. Each has its own README in `mods/<name>/` with all commands and settings.
 
 ### Dashboard (1)
 
@@ -42,7 +42,7 @@ Bands appear only when there is something to show, and they stack.
 
 The git band (project, branch, uncommitted changes, commits to push or pull) belongs to `bro-cockpit` and has its own switch.
 
-### Panes next to the chat (6, plus the cockpit)
+### Panes next to the chat (8, plus the cockpit)
 
 | Mod | What it shows | Command |
 |---|---|---|
@@ -57,7 +57,7 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 
 ## Contents
 
-- [All 13 mods](#all-13-mods)
+- [All 15 mods](#all-15-mods)
 - [What are Claude Code mods?](#what-are-claude-code-mods)
 - [bro-cockpit: dashboard for Claude Code](#bro-cockpit-dashboard-for-claude-code)
 - [secret-guard: stop Claude Code from writing secrets](#secret-guard-stop-claude-code-from-writing-secrets)
@@ -75,7 +75,7 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 
 ## What are Claude Code mods?
 
-Mods are plugins with a hooks module that change the interface or the behavior of Claude Code: a pane that stays next to the chat, a band above the prompt, a status line, slash commands, and hooks on tool calls. They are an early access feature of Claude Code, available in the desktop app and in the terminal. A mod is a folder with a `plugin.json` and a hooks module written in TypeScript. This repository contains 13 mods and the lessons learned while building them (see [docs](#documentation)).
+Mods are plugins with a hooks module that change the interface or the behavior of Claude Code: a pane that stays next to the chat, a band above the prompt, a status line, slash commands, and hooks on tool calls. They are an early access feature of Claude Code, available in the desktop app and in the terminal. A mod is a folder with a `plugin.json` and a hooks module written in TypeScript. This repository contains 15 mods and the lessons learned while building them (see [docs](#documentation)).
 
 ## bro-cockpit: dashboard for Claude Code
 
@@ -123,7 +123,7 @@ More screenshots follow: the Project tab with ideas, the prompt library, the kan
 
 ## Install Claude Code mods
 
-The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 13 mods.
+The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 15 mods.
 
 **Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app.
 
@@ -141,6 +141,15 @@ Example: `claude plugin install bro-cockpit@desktop-claude-code-mods`.
 **From a local clone:** use the folder path instead of the repository name, for example `claude plugin marketplace add ./desktop-claude-code-mods`.
 
 Reload after changes with `/reload-plugins`. Uninstall with `claude plugin uninstall <mod>`.
+
+**Update:** every mod has its own version, and an installed mod only updates when its version in the marketplace is newer. Refresh the catalog, update the mods you use, then restart Claude Code:
+
+```bash
+claude plugin marketplace update desktop-claude-code-mods
+claude plugin update <mod>@desktop-claude-code-mods
+```
+
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Turn mods or parts off
 
