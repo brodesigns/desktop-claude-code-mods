@@ -12,6 +12,15 @@
 
 > **Not an official Anthropic project.** Claude and Claude Code are trademarks of Anthropic. This repository is not affiliated with or endorsed by Anthropic.
 
+## Quick start in the Claude desktop app
+
+1. Click the **plus** next to the prompt box and open **Plugins**.
+2. Choose **Add marketplace** and enter `brodesigns/desktop-claude-code-mods`.
+3. Add the mods you want. Start with `bro-cockpit` (type `/cockpit`) or `secret-guard`.
+4. Restart the app if a mod does not show up.
+
+`/plugin` does not run in the desktop app. More detail, a table of which mod to try first and troubleshooting: [docs/03-install-in-claude-desktop.md](docs/03-install-in-claude-desktop.md). Terminal install: [Install Claude Code mods](#install-claude-code-mods).
+
 ## All 15 mods
 
 One marketplace, 15 mods: **1 dashboard, 1 guard hook, 5 bands, 8 panes**. Every mod is its own plugin, so you install only the ones you want. Each has its own README in `mods/<name>/` with all commands and settings.
@@ -57,6 +66,7 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 
 ## Contents
 
+- [Quick start in the Claude desktop app](#quick-start-in-the-claude-desktop-app)
 - [All 15 mods](#all-15-mods)
 - [What are Claude Code mods?](#what-are-claude-code-mods)
 - [bro-cockpit: dashboard for Claude Code](#bro-cockpit-dashboard-for-claude-code)
@@ -125,7 +135,7 @@ More screenshots follow: the Project tab with ideas, the prompt library, the kan
 
 The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 15 mods.
 
-**Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app.
+**Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app. Step by step, with a table of which mod to try first: [docs/03-install-in-claude-desktop.md](docs/03-install-in-claude-desktop.md).
 
 **Terminal:** add the marketplace once, then install each mod you want with the same pattern:
 
@@ -227,6 +237,7 @@ Mods run with your permissions. The mods make no network requests of their own, 
 
 1. [docs/01-basics.md](docs/01-basics.md): structure, types, testing, installing, developing
 2. [docs/02-rules-and-pitfalls.md](docs/02-rules-and-pitfalls.md): rules and pitfalls found while building
+3. [docs/03-install-in-claude-desktop.md](docs/03-install-in-claude-desktop.md): step by step guide for the Claude desktop app
 
 ## Contributing and license
 
