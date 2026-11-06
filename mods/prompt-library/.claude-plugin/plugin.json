@@ -1,6 +1,6 @@
 {
   "name": "prompt-library",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Prompt library: saved prompts for all projects or only this one, a light one-line-per-prompt pane with placeholders, put into the prompt box with /p",
   "author": {
     "name": "BroDesigns"
