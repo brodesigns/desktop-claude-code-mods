@@ -3,7 +3,7 @@ import type { EngineInterface, Register, RenderInput, RenderSurface } from 'clau
 
 import type { RuleEntry, RuleMap } from '../types'
 import { columns, isNarrow } from './layout'
-import { applyOps, asRules, ago, isSafe, isWorth, keyOf, rank, ruleOf, summaryOf } from './rules'
+import { applyOps, asRules, ago, copyText, isBroad, isRefusal, isSafe, isWorth, keyOf, rank, ruleFor, summaryOf } from './rules'
 import type { Op } from './rules'
 import { ACCENT, actions, emptyState, note, SPACE, TYPE } from './style'
 
@@ -11,8 +11,8 @@ const PANE = 'permission-log'
 const STORE_KEY = 'permissions'
 
 // Change the tag when RuleEntry's fields change: a value an earlier version stored is then declined.
-const sessionRules = atom({ plugin: 'permission-log', key: 'sessionRules' } as const, {}, { shape: 'rules-1' })
-const allRules = atom({ plugin: 'permission-log', key: 'allRules' } as const, {}, { shape: 'rules-1' })
+const sessionRules = atom({ plugin: 'permission-log', key: 'sessionRules' } as const, {}, { shape: 'rules-2' })
+const allRules = atom({ plugin: 'permission-log', key: 'allRules' } as const, {}, { shape: 'rules-2' })
 const view = atom({ plugin: 'permission-log', key: 'permView' } as const, 'worth')
 const scope = atom({ plugin: 'permission-log', key: 'permScope' } as const, 'session')
 const opened = atom({ plugin: 'permission-log', key: 'permOpen' } as const, '')
@@ -22,16 +22,19 @@ const lastNote = atom({ plugin: 'permission-log', key: 'permNote' } as const, nu
 
 const NOTES = [
   'Counted from the moment this mod is installed. Calls your rules already allow are never asked, so they do not show here.',
-  'A prompt counts as allowed when the tool ran after it, and as declined when the tool did not run or came back refused. That is read from the order of events, not from the dialog itself.',
-  'A rule is worth allowing after 3 allowed prompts and no declined one. Rules come from the engine\'s own suggestion for the prompt.',
+  'A prompt counts as allowed when the tool ran after it (even if the tool then failed) and as declined when the call came back refused. That is read from the order of events, not from the dialog itself.',
+  'A rule is worth allowing after 3 allowed prompts and no declined one. Only rules Claude Code itself suggests are offered; a prompt without a suggestion is logged under a label such as "Bash · git" and cannot be copied.',
+  'Rules for a whole sensitive tool (Bash, Read, Edit, Write, WebFetch) or for commands that run other code or delete (rm, curl, sh, python, sudo, …) are never suggested.',
   'Copy puts the rule on the clipboard. Add it under permissions.allow in .claude/settings.json yourself; this mod changes no settings.',
   'Commands and file names are redacted for known key patterns; a rule that held a secret cannot be copied.',
 ]
 
-// Prompts that were asked and wait for the tool to run (or not). Lost on a reload; at most MAX_WAITING.
-type Waiting = { tool: string; example: string; rule: string }
+// Prompts that were asked and wait for their tool call to finish. Lost on a reload; at most MAX_WAITING.
+type Waiting = { tool: string; example: string; rule: string; fromEngine: boolean; agent: string }
 const MAX_WAITING = 50
 let waiting: Waiting[] = []
+// False under `-p` and other hosts where nobody can answer: such prompts are not a person's.
+let interactive = true
 
 // Ops waiting to reach the store: written once per turn, at the end of the session, or when this many are waiting.
 const FLUSH_AT = 40
@@ -78,31 +81,30 @@ async function load($: EngineInterface) {
   })
 }
 
-// A person was asked: count the prompt and wait to see whether the tool ran.
-async function asked($: EngineInterface, tool: string, input: unknown, suggestions: unknown) {
-  const rule = ruleOf(tool, suggestions, input)
+// A person is asked. No awaiting here: the prompt may wait on this hook. The tool call settles it.
+function waitFor(tool: string, input: unknown, suggestions: unknown, agent: string) {
+  const { rule, fromEngine } = ruleFor(tool, suggestions, input)
   const example = summaryOf(input)
-  const at = await $.clock.now()
-  waiting = [...waiting, { tool, example, rule }].slice(-MAX_WAITING)
-  await count($, [{ kind: 'asked', rule, tool, example, at }])
+  // A second ask for the same call is one prompt.
+  if (waiting.some(w => w.tool === tool && w.example === example && w.agent === agent)) return
+  waiting = [...waiting, { tool, example, rule, fromEngine, agent }].slice(-MAX_WAITING)
 }
 
-// The tool ran (or came back refused) after a prompt for it.
-async function settle($: EngineInterface, tool: string, input: unknown, ok: boolean) {
+// The tool call finished: the prompt for it was allowed, or the call came back refused.
+async function settle($: EngineInterface, tool: string, input: unknown, ran: Parameters<typeof isRefusal>[0], agent: string) {
   const example = summaryOf(input)
-  const i = waiting.findIndex(w => w.tool === tool && w.example === example)
-  const w = waiting[i]
+  const same = waiting.filter(w => w.tool === tool && w.agent === agent)
+  const w = same.find(x => x.example === example) ?? (same.length === 1 ? same[0] : undefined)
   if (w === undefined) return
-  waiting = waiting.filter((_, j) => j !== i)
-  await count($, [{ kind: ok ? 'allowed' : 'declined', rule: w.rule, tool: w.tool, example: '', at: await $.clock.now() }])
+  waiting = waiting.filter(x => x !== w)
+  // The tool threw: nothing is known about the answer.
+  if (ran === null) return
+  await count($, [{ kind: isRefusal(ran) ? 'declined' : 'allowed', rule: w.rule, tool: w.tool, fromEngine: w.fromEngine, example: w.example, at: await $.clock.now() }])
 }
 
-// Prompts the tool never followed up on were declined.
-async function closeTurn($: EngineInterface) {
-  const left = waiting
-  waiting = []
-  const at = await $.clock.now()
-  await count($, left.map((w): Op => ({ kind: 'declined', rule: w.rule, tool: w.tool, example: '', at })))
+// A turn ended: prompts of that agent that never finished are dropped, not counted.
+async function closeTurn($: EngineInterface, agent: string) {
+  waiting = waiting.filter(w => w.agent !== agent)
   await flush($)
 }
 
@@ -111,8 +113,8 @@ async function say($: EngineInterface, text: string, tone: 'success' | 'warning'
 }
 
 async function copyRule($: EngineInterface, e: RuleEntry, surface: RenderSurface) {
-  if (!isSafe(e.rule)) return say($, 'Not copied: the rule held something that looks like a key.', 'warning')
-  const copied = await $.ui.copy({ text: e.rule, surface })
+  if (!e.fromEngine || !isSafe(e.rule) || isBroad(e.rule)) return say($, 'Not copied: this rule is not offered.', 'warning')
+  const copied = await $.ui.copy({ text: copyText(e.rule), surface })
   if (copied.isCopied) return say($, `Copied ${e.rule}. Add it under permissions.allow in .claude/settings.json.`, 'success')
   await say($, 'Clipboard unreachable: select and copy the rule above.', 'error')
 }
@@ -137,6 +139,7 @@ const cut = (text: string, room: number) => (text.length > room ? `${text.slice(
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    interactive = e.isInteractive !== false
     await $.command.register({ name: 'permlog', description: 'Show which permission prompts you allowed or declined, in a pane' })
     try {
       await load($)
@@ -154,12 +157,14 @@ export const register: Register = on => {
     return { text: res.isPlaced ? 'Permission log opened.' : 'Permission log: the pane is waiting for room.' }
   })
 
-  // A person is asked: observe only, the answer stays the engine's.
-  on('classic.PermissionRequest', async ($, e, next) => {
-    try {
-      await asked($, e.tool_name, e.tool_input, e.permission_suggestions)
-    } catch {
-      // Only the log misses it.
+  // A person is asked (this runs inside the tool call): observe only, the answer stays the engine's.
+  on('classic.PermissionRequest', ($, e, next) => {
+    if (interactive && e.permission_mode !== 'dontAsk') {
+      try {
+        waitFor(e.tool_name, e.tool_input, e.permission_suggestions, e.agent_id ?? '')
+      } catch {
+        // Only the log misses it.
+      }
     }
 
     return next(e)
@@ -168,8 +173,8 @@ export const register: Register = on => {
   // Refused without a person (a rule or the auto-mode classifier): counted as asked and declined.
   on('classic.PermissionDenied', async ($, e, next) => {
     try {
-      const at = await $.clock.now()
-      await count($, [{ kind: 'refused', rule: ruleOf(e.tool_name, undefined, e.tool_input), tool: e.tool_name, example: summaryOf(e.tool_input), at }])
+      const { rule, fromEngine } = ruleFor(e.tool_name, undefined, e.tool_input)
+      await count($, [{ kind: 'declined', rule, tool: e.tool_name, fromEngine, example: summaryOf(e.tool_input), at: await $.clock.now() }])
     } catch {
       // Only the log misses it.
     }
@@ -177,7 +182,7 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // The tool ran after a prompt: allowed. Cheap when nothing waits.
+  // The call wraps the prompt: when it returns, the prompt (if any) is answered.
   on('tool.call', async ($, e, next) => {
     let ran: Awaited<ReturnType<typeof next>> | null = null
     try {
@@ -185,8 +190,7 @@ export const register: Register = on => {
     } finally {
       if (waiting.length > 0 && typeof e.tool === 'string') {
         try {
-          const ok = ran !== null && typeof ran.deny !== 'string' && ran.isError !== true
-          await settle($, e.tool, e, ok)
+          await settle($, e.tool, e, ran, e.agentId ?? '')
         } catch {
           // The call's result stands; only the log misses it.
         }
@@ -198,7 +202,7 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     try {
-      await closeTurn($)
+      await closeTurn($, e.agentId ?? '')
     } catch {
       // Tried again at the next turn.
     }
@@ -208,7 +212,7 @@ export const register: Register = on => {
 
   on('session.end', async ($, e, next) => {
     try {
-      await closeTurn($)
+      await closeTurn($, '')
     } catch {
       // The session is ending; this turn's counts are lost.
     }
@@ -256,7 +260,9 @@ export const register: Register = on => {
               {x.example !== '' && <Text key="ex" mono size={TYPE.label} wrap="wrap">{x.example}</Text>}
               <Text key="n" dimColor size={TYPE.label} wrap="wrap">{`asked ${x.asked}× · allowed ${x.allowed}× · declined ${x.declined}× · last ${ago(now, x.last)} ago`}</Text>
               {x.declined > 0 && <Text key="w" color="warning" size={TYPE.label} wrap="wrap">You declined this before, so it is not suggested.</Text>}
-              {actions(ui, 'act', [<Button key="copy" label="⧉ copy rule" variant="secondary" onPress={press => copyRule($, x, press.surface)} />])}
+              {!x.fromEngine && <Text key="nf" dimColor size={TYPE.label} wrap="wrap">Claude Code suggested no rule for this prompt, so there is nothing to copy.</Text>}
+              {x.fromEngine && isBroad(x.rule) && <Text key="br" dimColor size={TYPE.label} wrap="wrap">Too broad to suggest.</Text>}
+              {x.fromEngine && !isBroad(x.rule) && isSafe(x.rule) && actions(ui, 'act', [<Button key="copy" label="⧉ copy rule" variant="secondary" onPress={press => copyRule($, x, press.surface)} />])}
             </Box>
           )}
         </Box>

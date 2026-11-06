@@ -28,28 +28,39 @@ export function summaryOf(input: unknown): string {
   return ''
 }
 
-// The rule to allow: the engine's own suggestion if it has one, else the tool name
-// (a first word for Bash). Redacted; a rule that held a secret ends up with the mask in it.
-export function ruleOf(tool: string, suggestions: unknown, input: unknown): string {
+// What a prompt is logged under. Only the engine's own `addRules` allow suggestion is a rule that can be
+// copied. With none, a label such as `Bash · git` is kept instead (never in rule syntax, so it is not copied).
+export function ruleFor(tool: string, suggestions: unknown, input: unknown): { rule: string; fromEngine: boolean } {
   if (Array.isArray(suggestions)) {
     for (const s of suggestions) {
       const u = s as { type?: unknown; behavior?: unknown; rules?: unknown }
       if (u?.type !== 'addRules' || u.behavior !== 'allow' || !Array.isArray(u.rules)) continue
-      const r = u.rules[0] as { toolName?: unknown; ruleContent?: unknown } | undefined
-      if (typeof r?.toolName !== 'string') continue
-      return clean(redact(typeof r.ruleContent === 'string' && r.ruleContent !== '' ? `${r.toolName}(${r.ruleContent})` : r.toolName))
+      const rules = u.rules
+        .map(r => r as { toolName?: unknown; ruleContent?: unknown })
+        .filter(r => typeof r.toolName === 'string')
+        .map(r => (typeof r.ruleContent === 'string' && r.ruleContent !== '' ? `${r.toolName as string}(${r.ruleContent})` : (r.toolName as string)))
+      if (rules.length > 0) return { rule: clean(redact(rules.join(RULE_SEP))), fromEngine: true }
     }
   }
-  const text = summaryOf(input)
-  if (tool === 'Bash' && text !== '') return clean(`Bash(${text.split(' ')[0] ?? ''}:*)`)
+  const first = tool === 'Bash' ? (summaryOf(input).split(' ')[0] ?? '') : ''
 
-  return clean(redact(tool))
+  return { rule: clean(redact(first === '' ? tool : `${tool} · ${first}`)), fromEngine: false }
 }
+
+export const RULE_SEP = ' + '
+
+// What a click on "copy" puts on the clipboard: one rule a line.
+export const copyText = (rule: string) => rule.split(RULE_SEP).join('\n')
 
 // A rule that held a secret is never offered to copy.
 export const isSafe = (rule: string) => !rule.includes(MASK)
 
-export type Op = { kind: 'asked' | 'allowed' | 'declined' | 'refused'; rule: string; tool: string; example: string; at: number }
+// Rules for a whole sensitive tool, or for a command that runs other code or deletes, are never suggested.
+const BROAD_TOOLS = /^(Bash|Read|Edit|Write|MultiEdit|NotebookEdit|WebFetch)$/
+const BROAD_WORDS = /^Bash\((rm|rmdir|curl|wget|sh|bash|zsh|sudo|eval|exec|xargs|env|nohup|python[0-9.]*|node|npx|perl|ruby|ssh|scp|dd|chmod|chown|kill|git\s+(push\s+(-f|--force)|reset\s+--hard|clean))\b/
+export const isBroad = (rule: string) => rule.split(RULE_SEP).some(r => BROAD_TOOLS.test(r) || BROAD_WORDS.test(r))
+
+export type Op = { kind: 'allowed' | 'declined'; rule: string; tool: string; fromEngine: boolean; example: string; at: number }
 
 // Applies the ops. Returns a new map; past MAX_RULES the rules idle longest are dropped.
 export function applyOps(map: RuleMap, ops: Op[]): RuleMap {
@@ -57,12 +68,12 @@ export function applyOps(map: RuleMap, ops: Op[]): RuleMap {
   for (const op of ops) {
     if (op.rule === '') continue
     const k = keyOf(op.rule)
-    const old: RuleEntry = out[k] ?? { rule: op.rule, tool: op.tool, asked: 0, allowed: 0, declined: 0, first: op.at, last: op.at, example: op.example }
+    const old: RuleEntry = out[k] ?? { rule: op.rule, tool: op.tool, fromEngine: op.fromEngine, asked: 0, allowed: 0, declined: 0, first: op.at, last: op.at, example: op.example }
     out[k] = {
       ...old,
-      asked: old.asked + (op.kind === 'asked' || op.kind === 'refused' ? 1 : 0),
+      asked: old.asked + 1,
       allowed: old.allowed + (op.kind === 'allowed' ? 1 : 0),
-      declined: old.declined + (op.kind === 'declined' || op.kind === 'refused' ? 1 : 0),
+      declined: old.declined + (op.kind === 'declined' ? 1 : 0),
       last: op.at,
       example: op.example !== '' ? op.example : old.example,
     }
@@ -87,6 +98,7 @@ export function asRules(raw: unknown): RuleMap {
     out[keyOf(rule)] = {
       rule,
       tool: clean(e.tool),
+      fromEngine: e.fromEngine === true,
       asked: num(e.asked),
       allowed: num(e.allowed),
       declined: num(e.declined),
@@ -101,7 +113,15 @@ export function asRules(raw: unknown): RuleMap {
   return out
 }
 
-export const isWorth = (e: RuleEntry) => e.allowed >= WORTH_FROM && e.declined === 0 && isSafe(e.rule)
+export const isWorth = (e: RuleEntry) => e.fromEngine && e.allowed >= WORTH_FROM && e.declined === 0 && isSafe(e.rule) && !isBroad(e.rule)
+
+// A tool result that is the person's "no": a hook's deny, or the engine's rejection wording.
+export function isRefusal(ran: { deny?: unknown; isError?: unknown; text?: unknown } | null): boolean {
+  if (ran === null) return false
+  if (typeof ran.deny === 'string') return true
+
+  return ran.isError === true && typeof ran.text === 'string' && /doesn't want to proceed|does not want to proceed|permission .{0,40}denied|was rejected/i.test(ran.text)
+}
 
 export function rank(map: RuleMap, view: string): RuleEntry[] {
   const list = Object.values(map)

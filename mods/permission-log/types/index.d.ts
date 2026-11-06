@@ -1,7 +1,10 @@
-// One permission rule (as the engine suggests it, e.g. `Bash(git push:*)`) and what happened to its prompts.
+// One permission rule (as the engine suggests it, e.g. `Bash(git push:*)`) or, with no suggestion, a label such as
+// `Bash · git`, and what happened to its prompts.
 export type RuleEntry = {
   rule: string
   tool: string
+  // True when the rule is the engine's own suggestion; only those can be copied.
+  fromEngine: boolean
   asked: number
   allowed: number
   declined: number
