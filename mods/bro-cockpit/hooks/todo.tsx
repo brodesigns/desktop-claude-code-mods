@@ -31,8 +31,12 @@ let isBusy = false
 let isScanning = false
 let isDue = false
 // What the last read of todo.md looked like (path, change time, size). An unchanged file is not read or parsed
-// again; our own writes clear it, so a quick edit within the same timestamp is still read.
+// again. After our own write it stays empty, so the next look compares the content once: a change made by
+// someone else in the same moment (same timestamp and size) is not mistaken for our own echo.
 let seen = ''
+// A look requested while another one runs: the look goes round once more (own writes read from scratch).
+let isTodoDue = false
+let isTodoForced = false
 // Tick, add and undo each read, change and write the file: one after another, so none loses another's change.
 let queue: Promise<unknown> = Promise.resolve()
 
@@ -67,27 +71,42 @@ async function locate($: EngineInterface): Promise<{ path: string; name: string;
 }
 
 // One look at the file. Never throws, never stacks: a look still running makes the next one a no-op.
-export async function refreshTodo($: EngineInterface) {
-  if (isBusy) return
+// A request during a running look is not dropped: that look may have read the file before the change.
+// `isOwn`: after our own write; the file is read whatever its stamp says and the stamp is not trusted afterwards.
+export async function refreshTodo($: EngineInterface, isOwn = false) {
+  if (isOwn) isTodoForced = true
+  if (isBusy) {
+    isTodoDue = true
+    return
+  }
   isBusy = true
   try {
-    const found = await locate($)
-    let fresh: TodoList | null = null
-    let stamp = ''
-    if (found !== null) {
-      stamp = `${found.path}\n${found.mtimeMs}\n${found.size}`
-      if (stamp === seen) return
-      const text = await $.fs.read(found.path)
-      fresh = { path: found.path, name: found.name, items: typeof text === 'string' ? parse(text) : [] }
-    }
-    await setIfChanged(() => read($, list), v => update($, list, () => v), fresh)
-    seen = stamp
-    await refreshCounts($)
+    do {
+      isTodoDue = false
+      await lookTodo($)
+    } while (isTodoDue)
   } catch {
     // Unreadable this time; the next look tries again.
   } finally {
     isBusy = false
   }
+}
+
+async function lookTodo($: EngineInterface) {
+  const isForced = isTodoForced
+  isTodoForced = false
+  const found = await locate($)
+  let fresh: TodoList | null = null
+  let stamp = ''
+  if (found !== null) {
+    stamp = `${found.path}\n${found.mtimeMs}\n${found.size}`
+    if (stamp === seen && !isForced) return
+    const text = await $.fs.read(found.path)
+    fresh = { path: found.path, name: found.name, items: typeof text === 'string' ? parse(text) : [] }
+  }
+  await setIfChanged(() => read($, list), v => update($, list, () => v), fresh)
+  seen = isForced ? '' : stamp
+  await refreshCounts($)
 }
 
 // One marker scan at a time; a request while one runs makes it go round once more.
@@ -136,14 +155,12 @@ async function tickNow($: EngineInterface, item: TodoItem) {
     const text = await $.fs.read(data.path)
     const cut = typeof text === 'string' ? remove(text, item) : null
     if (cut === null) {
-      seen = ''
-      await refreshTodo($)
+      await refreshTodo($, true)
       return say($, `"${item.text}" is no longer in ${data.name}.`, 'warning')
     }
-    seen = ''
     await $.fs.write(data.path, cut.text)
     await update($, undoable, () => ({ path: data.path, index: cut.index, lines: cut.lines, text: item.text }))
-    await refreshTodo($)
+    await refreshTodo($, true)
     await say($, `"${item.text}" removed from ${data.name}.`, 'success')
   } catch {
     await say($, `Not removed: ${data.name} could not be written.`, 'error')
@@ -164,9 +181,8 @@ async function addNow($: EngineInterface, input: string) {
     const path = found?.path ?? `${await $.session.root()}/todo.md`
     const name = found?.name ?? 'todo.md'
     const before = found === null ? null : await $.fs.read(path)
-    seen = ''
     await $.fs.write(path, append(typeof before === 'string' ? before : null, entries))
-    await refreshTodo($)
+    await refreshTodo($, true)
     await say($, `${entries.length === 1 ? 'Added' : `Added ${entries.length} entries`} to ${name}${found === null ? ' (new file)' : ''}.`, 'success')
   } catch {
     await say($, 'Not added: the todo.md could not be written.', 'error')
@@ -188,10 +204,9 @@ async function undoNow($: EngineInterface) {
   if (last === null || (await isLinked($))) return
   try {
     const text = await $.fs.read(last.path)
-    seen = ''
     await $.fs.write(last.path, restore(typeof text === 'string' ? text : '', last.index, last.lines))
     await update($, undoable, () => null)
-    await refreshTodo($)
+    await refreshTodo($, true)
     await say($, `"${last.text}" is back.`, 'success')
   } catch {
     await say($, 'Not restored: the file could not be written.', 'error')
@@ -210,8 +225,8 @@ export async function startTodo($: EngineInterface, markerWords: string, session
   markerTimer = $.clock.every(MARKER_POLL_MS, async () => {
     if (await isPaneUp($)) await refreshMarkers($)
   })
-  void refreshTodo($)
-  void refreshMarkers($)
+  refreshTodo($).catch(() => undefined)
+  refreshMarkers($).catch(() => undefined)
 }
 
 // A file Claude wrote counts at once instead of at the next poll. Display only: the call already ran.

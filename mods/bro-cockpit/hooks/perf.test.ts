@@ -61,6 +61,8 @@ test('the head counts follow the tool calls in one atom', async ($, on) => {
 
   expect(counts?.calls).toBe(2)
   expect(counts?.errors).toBe(0)
+  // The running total lives in engine state, not in a module variable.
+  expect(mem.get('callTotal')).toBe(2)
 })
 
 // Fake secrets are built from parts so this file never holds a real-looking token.

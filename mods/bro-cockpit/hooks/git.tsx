@@ -61,10 +61,22 @@ let known = { cwd: '', project: '', remote: '' }
 let timer: { cancel: () => void } | null = null
 let isRefreshing = false
 let isDue = false
+// Set by the timer's poll: the remote is looked at again once (a remote added or changed during the session).
+// Tool calls (`gitTouched`) never set it, so they cost no extra process.
+let isRemoteDue = false
+
+// The `origin` remote; '' without one. A remote can carry a token (https://user:token@host/...): the userinfo
+// never reaches the state.
+async function remoteOf($: EngineInterface) {
+  const origin = await git($, ['remote', 'get-url', 'origin'], 5_000)
+
+  return origin !== null && origin.exitCode === 0 ? origin.stdout.trim().replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/\s]+@/i, '$1') : ''
+}
 
 // One look at a time; a request while one runs makes it go round once more, so a change right after the
 // look began is not missed.
-async function refresh($: EngineInterface) {
+async function refresh($: EngineInterface, isPoll = false) {
+  if (isPoll) isRemoteDue = true
   if (isRefreshing) {
     isDue = true
     return
@@ -87,9 +99,8 @@ async function look($: EngineInterface) {
     const cwd = await $.session.cwd()
     if (cwd !== known.cwd) {
       project = await projectOf($)
-      const origin = await git($, ['remote', 'get-url', 'origin'], 5_000)
-      // A remote can carry a token (https://user:token@host/...): the userinfo never reaches the state.
-      remote = origin !== null && origin.exitCode === 0 ? origin.stdout.trim().replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/\s]+@/i, '$1') : ''
+      remote = await remoteOf($)
+      isRemoteDue = false
       // The project tab loads in any case, with the folder name when git gave nothing.
       try {
         const name = project !== '' ? project : baseName(await $.session.root())
@@ -100,6 +111,15 @@ async function look($: EngineInterface) {
       }
     }
     const res = await git($, ['status', '--porcelain', '-b'], 10_000)
+    if (isRemoteDue) {
+      // Same project, a poll: the remote may have been added or changed since. Only in a repository, and the state
+      // is written below only when it differs.
+      isRemoteDue = false
+      if (res !== null && res.exitCode === 0) {
+        remote = await remoteOf($)
+        known = { ...known, remote }
+      }
+    }
     const fresh: GitInfo = res !== null && res.exitCode === 0 ? { ...parse(res.stdout, project), remote } : { project, ...EMPTY }
     await setIfChanged(() => read($, info), v => update($, info, () => v), fresh)
   } catch {
@@ -110,14 +130,14 @@ async function look($: EngineInterface) {
 // After Claude ran something that can move the repository (a command, a file write), the band follows at once
 // instead of at the next poll. Display only: nothing waits for it.
 export function gitTouched($: EngineInterface, tool: string) {
-  if (/^(Bash|Write|Edit|MultiEdit|NotebookEdit)$/.test(tool)) void refresh($).catch(() => undefined)
+  if (/^(Bash|Write|Edit|MultiEdit|NotebookEdit)$/.test(tool)) refresh($).catch(() => undefined)
 }
 
 // Every 15 s, also with the pane closed: the band above the prompt shows this.
 export async function start($: EngineInterface) {
-  void refresh($).catch(() => undefined)
+  refresh($).catch(() => undefined)
   timer?.cancel()
-  timer = $.clock.every(15_000, () => void refresh($).catch(() => undefined))
+  timer = $.clock.every(15_000, () => void refresh($, true).catch(() => undefined))
 }
 
 type Ui = ReturnType<EngineInterface['ui']['resolve']>

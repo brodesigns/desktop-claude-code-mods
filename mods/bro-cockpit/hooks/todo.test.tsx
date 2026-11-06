@@ -17,7 +17,7 @@ const ran = (exitCode: number, stdout: string) => ({ value: { exitCode, stdout, 
 
 // What the engine saw: the pane being open, every git call, every file read, and a counter that stamps todo.md
 // like a file system would (every write moves the modification time).
-const seen = { isPaneUp: true, git: [] as string[][], reads: [] as string[], stamp: 1 }
+const seen = { isPaneUp: true, git: [] as string[][], reads: [] as string[], stamp: 1, remote: '' }
 
 // The engine beneath the cockpit: a project at /p with a todo.md and some changed code, a state kept in a Map.
 function world(on: On, files: Record<string, string>, status: string | null, opened: string[][] = [], listing?: { name: string; kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean }[]) {
@@ -26,6 +26,7 @@ function world(on: On, files: Record<string, string>, status: string | null, ope
   seen.git = []
   seen.reads = []
   seen.stamp = 1
+  seen.remote = ''
   on('ui.panes', () => ({ value: [{ id: 'bro-cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: seen.isPaneUp }] }))
   on('state.get', (_, e) => ({ value: { value: state.get((e as { key: string }).key), version: 1 } }))
   on('state.set', (_, e) => {
@@ -69,11 +70,13 @@ function world(on: On, files: Record<string, string>, status: string | null, ope
       const rows = Object.entries(files).flatMap(([path, text]) => text.split('\n').flatMap((l, i) => (re.test(l) ? [`${path.replace('/p/', '')}:${i + 1}:${l}`] : [])))
       return rows.length === 0 ? ran(1, '') : ran(0, rows.join('\n') + '\n')
     }
-    if (e.argv.includes('remote')) return ran(1, '')
+    if (e.argv.includes('remote')) return seen.remote === '' ? ran(1, '') : ran(0, `${seen.remote}\n`)
     // The cockpit's own git line asks `status --porcelain -b`; the marker scan asks `status --porcelain=v1 -z`.
     return e.argv.includes('-b') ? ran(0, '## main\n') : ran(0, status)
   })
   on('tool.call', () => ({ result: {} }))
+
+  return state
 }
 
 async function begin($: { session: { start: (a: never) => Promise<unknown> } }, on: On) {
@@ -475,4 +478,56 @@ test('a huge line from a repository is cut before it is processed', () => {
   expect(parse(line)[0]?.text.length).toBeLessThan(700)
   expect(hitsIn('min.js', 'TODO ' + '['.repeat(2000) + 'a('.repeat(50_000), ['TODO'])[0]?.text.length).toBeLessThan(130)
   expect(Date.now() - started).toBeLessThan(2000)
+})
+
+test('git grep keeps non-ASCII file names readable (no quoted octal escapes)', async ($, on) => {
+  world(on, { '/p/a.ts': '// TODO one\n' }, '')
+  await begin($ as never, on)
+  const grep = seen.git.find(argv => argv.includes('grep'))
+  const at = grep?.indexOf('core.quotePath=false') ?? -1
+  expect(at).toBeGreaterThan(0)
+  expect(grep?.[at - 1]).toBe('-c')
+  // The option comes before the subcommand, where git reads it.
+  expect(at).toBeLessThan(grep?.indexOf('grep') ?? -1)
+})
+
+test('a remote added during the session is picked up on the poll, without a process per tool call', async ($, on) => {
+  const state = world(on, { '/p/a.ts': 'x\n' }, '')
+  const clock = await begin($ as never, on)
+  const remotes = () => seen.git.filter(argv => argv.includes('remote')).length
+  expect((state.get('gitInfo') as { remote?: string }).remote).toBe('')
+
+  seen.remote = 'git@github.com:acme/app.git'
+  const before = remotes()
+  await $.tool.call({ tool: 'Bash' as const, command: 'git remote add origin x' })
+  await clock.advance(0)
+  expect(remotes()).toBe(before)
+  expect((state.get('gitInfo') as { remote?: string }).remote).toBe('')
+
+  await clock.advance(15_000)
+  expect(remotes()).toBe(before + 1)
+  expect((state.get('gitInfo') as { remote?: string }).remote).toBe('git@github.com:acme/app.git')
+
+  // Changed again: followed, and an unchanged remote writes nothing.
+  seen.remote = 'https://user:secret@github.com/acme/other.git'
+  await clock.advance(15_000)
+  expect((state.get('gitInfo') as { remote?: string }).remote).toBe('https://github.com/acme/other.git')
+})
+
+test('a change made elsewhere right after our own write is shown, even with the same timestamp and size', async ($, on) => {
+  const files: Record<string, string> = { '/p/todo.md': '- [ ] aaa\n- [ ] bbb\n- [ ] ccc\n' }
+  world(on, files, '')
+  const clock = await begin($ as never, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'item-0' })
+  expect(files['/p/todo.md']).toBe('- [ ] bbb\n- [ ] ccc\n')
+
+  // Someone else swaps an entry for a text of the same length; the file system gives the same timestamp.
+  files['/p/todo.md'] = '- [ ] bbb\n- [ ] zzz\n'
+  await clock.advance(5_000)
+  await ui.unmount()
+  const again = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await again.find({ type: 'Text', text: /☐ zzz/ })) != null).toBe(true)
+  expect((await again.find({ type: 'Text', text: /☐ ccc/ })) == null).toBe(true)
+  await again.unmount()
 })

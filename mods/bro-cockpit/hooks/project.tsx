@@ -74,38 +74,49 @@ export async function loadProject($: EngineInterface, project: string) {
   await refreshCounts($)
 }
 
-// Every change is written to the plugin store at once, under the project's key, so the next session finds it.
-// False when no project is known: then nothing is kept, not even for this session.
-async function persist($: EngineInterface, list: Idea[]) {
+// Read, change, write: the store is read again right before each write, so ideas saved by another session since
+// this one loaded are kept (the change is applied to the stored list, not to the one in the state). The state
+// then shows the merged list. 'none' when no project is known, 'refused' when the store did not take the value.
+async function mutate($: EngineInterface, change: (list: Idea[]) => Idea[]): Promise<'saved' | 'none' | 'refused'> {
   const key = (await read($, info))?.key ?? ''
-  if (key === '') return false
-  await update($, ideas, () => list)
-  await $.store.set(key, list)
+  if (key === '') return 'none'
+  let merged: Idea[]
+  try {
+    const stored = await $.store.get(key)
+    merged = change(Array.isArray(stored) ? (stored as Idea[]) : await read($, ideas))
+    await $.store.set(key, merged)
+  } catch {
+    return 'refused'
+  }
+  await update($, ideas, () => merged)
   await refreshCounts($)
 
-  return true
+  return 'saved'
 }
 
-async function addIdea($: EngineInterface, kind: string, text: string): Promise<'empty' | 'saved' | 'none'> {
+async function addIdea($: EngineInterface, kind: string, text: string): Promise<'empty' | 'saved' | 'none' | 'refused'> {
   const clean = printable(redact(text)).trim()
   if (clean === '') return 'empty'
-  const list = await read($, ideas)
-  const id = list.reduce((max, i) => Math.max(max, i.id), 0) + 1
-  const isSaved = await persist($, [...list, { id, kind, text: clean, status: 'open', at: await $.clock.now() }])
+  const at = await $.clock.now()
 
-  return isSaved ? 'saved' : 'none'
+  return mutate($, list => [...list, { id: list.reduce((max, i) => Math.max(max, i.id), 0) + 1, kind, text: clean, status: 'open', at }])
 }
 
-const reply = (result: 'empty' | 'saved' | 'none', label: string, command: string) =>
+const reply = (result: 'empty' | 'saved' | 'none' | 'refused', label: string, command: string) =>
   result === 'saved'
     ? `${label} saved (cockpit, Project tab).`
     : result === 'empty'
       ? `Nothing saved: please add a text, for example /${command} Dark theme.`
-      : `Not saved: the project is not detected yet. Please try again in a few seconds.`
+      : result === 'refused'
+        ? 'Not saved: the plugin store refused the value (full or unreachable).'
+        : `Not saved: the project is not detected yet. Please try again in a few seconds.`
 
-async function cycle($: EngineInterface, id: number) {
-  const list = await read($, ideas)
-  await persist($, list.map(i => (i.id === id ? { ...i, status: NEXT[i.status] ?? 'open' } : i)))
+// Ideas match by id and creation time: another session may have reused an id since this view was drawn.
+const isSame = (a: Idea, b: Idea) => a.id === b.id && a.at === b.at
+
+// The status moves from the one the click saw, so two sessions clicking the same idea do not step it twice.
+async function cycle($: EngineInterface, idea: Idea) {
+  await mutate($, list => list.map(i => (isSame(i, idea) ? { ...i, status: NEXT[idea.status] ?? 'open' } : i)))
 }
 
 // Click on the idea text: into the prompt box, else onto the clipboard.
@@ -119,9 +130,8 @@ async function useIdea($: EngineInterface, text: string, surface: RenderSurface)
   $.ui.toast(copied.isCopied ? 'Prompt box unreachable. The idea is on the clipboard.' : 'Prompt box and clipboard unreachable.')
 }
 
-async function removeIdea($: EngineInterface, id: number) {
-  const list = await read($, ideas)
-  await persist($, list.filter(i => i.id !== id))
+async function removeIdea($: EngineInterface, idea: Idea) {
+  await mutate($, list => list.filter(i => !isSame(i, idea)))
 }
 
 export async function count($: EngineInterface) {
@@ -212,8 +222,8 @@ export async function view($: EngineInterface, e: RenderInput) {
                     </Button>
                   </Box>
                   <Box flexShrink={0} gap={SPACE.tight}>
-                    <Button key={`st-${i.id}`} label={MARK[i.status] ?? i.status} variant="secondary" onPress={() => cycle($, i.id)} />
-                    <Button key={`rm-${i.id}`} label="✕ Delete" variant="secondary" onPress={() => removeIdea($, i.id)} />
+                    <Button key={`st-${i.id}`} label={MARK[i.status] ?? i.status} variant="secondary" onPress={() => cycle($, i)} />
+                    <Button key={`rm-${i.id}`} label="✕ Delete" variant="secondary" onPress={() => removeIdea($, i)} />
                   </Box>
                 </Box>,
               ),

@@ -97,7 +97,7 @@ export async function begin($: EngineInterface, e: ToolCallInput): Promise<Call>
     agent: e.agentId !== undefined,
     agentId: e.agentId ?? '',
   }
-  noteCall()
+  await noteCall($)
   await update($, calls, list => trim([...list, call]))
 
   return call

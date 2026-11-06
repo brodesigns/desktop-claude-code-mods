@@ -39,7 +39,7 @@ export async function scanMarkers($: EngineInterface): Promise<TodoSummary | nul
   let hits: TodoHit[] = []
   if (known.top !== '') {
     // Exit 1 means "no match"; any other failure reads as "nothing found this time".
-    const res = await git($, ['-C', known.top, 'grep', '-I', '-n', '-w', '--untracked', '--full-name', '--no-color', ...config.markers.flatMap(m => ['-e', m])], 15_000)
+    const res = await git($, ['-c', 'core.quotePath=false', '-C', known.top, 'grep', '-I', '-n', '-w', '--untracked', '--full-name', '--no-color', ...config.markers.flatMap(m => ['-e', m])], 15_000)
     if (res !== null && (res.exitCode === 0 || res.exitCode === 1)) hits = parseGrep(res.stdout, config.markers)
   } else if (config.session) {
     for (const path of sessionFiles) {
