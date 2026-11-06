@@ -24,10 +24,12 @@ test('MCP tool names give the connector, and the plugin for a plugin server', ()
 test('a skill counts for itself and for its plugin', () => {
   expect(skillHits('commit')).toEqual([{ kind: 'skill', name: 'commit' }])
   expect(skillHits('review', 'acme')).toEqual([
-    { kind: 'skill', name: 'review' },
+    { kind: 'skill', name: 'acme:review' },
     { kind: 'plugin', name: 'acme' },
   ])
   expect(skillHits('bad\nname\u0000')[0]?.name).toBe('bad name')
+  // C0 and C1 control characters are gone.
+  expect(skillHits('a\u0085b\u009fc')[0]?.name).toBe('a b c')
 })
 
 test('bump counts, keeps first and last, and caps the list', () => {
@@ -142,7 +144,9 @@ test('installed things: skills, connectors and plugins with a token estimate; bu
   // A plugin skill is found under its bare name and under plugin:name.
   const review = list.find(x => x.name === 'review')!
   expect(usedCount(bump({}, skillHits('acme:review'), 1), review)).toBe(1)
-  expect(usedCount(bump({}, skillHits('review'), 1), review)).toBe(1)
+  expect(usedCount(bump({}, skillHits('review', 'acme'), 1), review)).toBe(1)
+  // A skill of the same bare name from elsewhere is another skill.
+  expect(usedCount(bump({}, skillHits('review'), 1), review)).toBe(0)
   expect(usedCount({}, review)).toBe(0)
 })
 
@@ -150,10 +154,10 @@ test('tool statistics count calls, failures, refusals and time', () => {
   let s = bumpTool({}, 'Bash', 'ok', 100)
   s = bumpTool(s, 'Bash', 'failed', 300)
   s = bumpTool(s, 'Bash', 'denied', 0)
-  expect(s.Bash).toEqual({ name: 'Bash', n: 3, failed: 1, denied: 1, ms: 400 })
-  expect(avg(s.Bash!)).toBe('133ms')
+  expect(s['t:Bash']).toEqual({ name: 'Bash', n: 3, failed: 1, denied: 1, ms: 400 })
+  expect(avg(s['t:Bash']!)).toBe('133ms')
   expect(avg({ name: 'x', n: 2, failed: 0, denied: 0, ms: 3000 })).toBe('1.5s')
-  expect(asToolStats({ a: { name: 'a', n: -1, failed: 'x' }, b: 3 })).toEqual({ a: { name: 'a', n: 0, failed: 0, denied: 0, ms: 0 } })
+  expect(asToolStats({ a: { name: 'a', n: -1, failed: 'x' }, b: 3 })).toEqual({ 't:a': { name: 'a', n: 0, failed: 0, denied: 0, ms: 0 } })
 })
 
 test('the Unused, Context and Tools views read the inventory and the statistics', async ($, on) => {
@@ -217,4 +221,70 @@ test('the notes open and close behind one button', async ($, on) => {
     expect((await ui.find({ type: 'Text', text: /Counting starts when this mod is installed/ })) == null).toBe(true)
     await ui.unmount()
   }
+})
+
+test('a server name with an underscore is cut at the known plugin, odd tool names are plain entries', () => {
+  expect(mcpHits('mcp__plugin_acme_my_server__x', ['acme'])).toEqual([
+    { kind: 'connector', name: 'my_server' },
+    { kind: 'plugin', name: 'acme' },
+  ])
+  expect(mcpHits('mcp__plugin_my-plug_srv__x', ['my-plug'])[1]).toEqual({ kind: 'plugin', name: 'my-plug' })
+  let s = bumpTool({}, '__proto__', 'ok', 1)
+  s = bumpTool(s, 'constructor', 'ok', 1)
+  expect(Object.values(s).map(x => x.n)).toEqual([1, 1])
+  // At the cap the newest tool still gets in; the least called goes.
+  let big = {}
+  for (let i = 0; i < 90; i++) big = bumpTool(big, `tool${i}`, 'ok', 1)
+  expect(Object.keys(big).length).toBe(80)
+  expect(big['t:tool89' as keyof typeof big]).toBeDefined()
+})
+
+test('a stored name with a control character is cleaned when it is read back', () => {
+  const out = asItems({ x: { kind: 'skill', name: 'bad\u0085name', n: 1, first: 1, last: 1 } })
+  expect(Object.keys(out)).toEqual(['skill:bad name'])
+  expect(asToolStats({ x: { name: '\u0085', n: 1 } })).toEqual({})
+})
+
+test('a control character in a skill name never blanks the pane', async ($, on) => {
+  const store: Record<string, unknown> = {}
+  on('store.get', (_, e) => ({ value: store[e.key] }))
+  on('store.set', (_, e) => {
+    store[e.key] = JSON.parse(JSON.stringify(e.value))
+    return { value: undefined }
+  })
+  on('clock.now', () => ({ value: 1 }))
+  on('skill.prompt', (_, e) => ({ text: e.text }))
+  await $.skill.prompt({ skill: 'bad\u0085name', text: 'x', source: 'built-in' })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    for (const bodyColumns of [36, 50, 80]) {
+      const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface })
+      expect((await ui.find({ type: 'Text', text: 'bad name' })) != null).toBe(true)
+      await ui.unmount()
+    }
+  }
+})
+
+test('Reset all needs a second press and Cancel disarms it', async ($, on) => {
+  const store: Record<string, unknown> = { usage: { 'skill:a': { kind: 'skill', name: 'a', n: 2, first: 1, last: 1 } } }
+  on('store.get', (_, e) => ({ value: store[e.key] }))
+  on('store.set', (_, e) => {
+    store[e.key] = JSON.parse(JSON.stringify(e.value))
+    return { value: undefined }
+  })
+  on('clock.now', () => ({ value: 1 }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('tool.list', () => ({ value: [] }))
+  on('command.list', () => ({ value: [] }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'scope' })
+  await ui.press({ key: 'reset' })
+  expect((store.usage as object) !== undefined && Object.keys(store.usage as object).length).toBe(1)
+  await ui.press({ key: 'cancel' })
+  await ui.press({ key: 'reset' })
+  expect(Object.keys(store.usage as object).length).toBe(1)
+  await ui.press({ key: 'reset' })
+  expect(Object.keys(store.usage as object).length).toBe(0)
+  await ui.unmount()
 })

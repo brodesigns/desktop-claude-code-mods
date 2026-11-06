@@ -6,19 +6,25 @@ import { clean, keyOf, mcpHits } from './usage'
 // Rough: about four characters a token. Only a guide for what to look at first.
 export const estimate = (text: string): number => Math.ceil(text.length / 4)
 
-export const MAX_INSTALLED = 400
+// Per kind, so many skills do not push out the connectors and plugins.
+export const MAX_INSTALLED = 200
 
 // Skills and commands from `$.command.list()`, connectors from `$.tool.list()` (MCP tools),
 // plugins from both. Built-in commands and MCP prompts are left out.
 export function buildInstalled(tools: ToolInfo[], commands: CommandInfo[]): InstalledItem[] {
   const skills: InstalledItem[] = []
+  const seen = new Set<string>()
+  // Plugin names the commands carry: they decide where a plugin's MCP server name is cut.
+  const known = [...new Set(commands.flatMap(c => (c.plugin === undefined ? [] : [clean(c.plugin)])))]
   const connectors = new Map<string, InstalledItem>()
   const plugins = new Map<string, number>()
 
   for (const c of commands) {
     if (c.source !== 'plugin' && c.source !== 'user') continue
     const name = clean(c.name)
-    if (name === '') continue
+    // This mod's own command is code, not a skill.
+    if (name === '' || name === 'toolusage' || seen.has(name)) continue
+    seen.add(name)
     const tokens = estimate(`${c.name} ${c.description}`)
     const plugin = c.plugin === undefined ? undefined : clean(c.plugin)
     skills.push(plugin === undefined || plugin === '' ? { kind: 'skill', name, tokens } : { kind: 'skill', name, tokens, plugin })
@@ -27,7 +33,7 @@ export function buildInstalled(tools: ToolInfo[], commands: CommandInfo[]): Inst
 
   for (const t of tools) {
     if (!t.mcp) continue
-    const hits = mcpHits(t.name)
+    const hits = mcpHits(t.name, known)
     const conn = hits.find(h => h.kind === 'connector')
     if (conn === undefined) continue
     const tokens = estimate(`${t.name} ${t.description}`)
@@ -37,28 +43,19 @@ export function buildInstalled(tools: ToolInfo[], commands: CommandInfo[]): Inst
     if (plugin !== undefined) plugins.set(plugin, (plugins.get(plugin) ?? 0) + tokens)
   }
 
-  const out: InstalledItem[] = [
-    ...skills,
-    ...connectors.values(),
-    ...[...plugins].map(([name, tokens]): InstalledItem => ({ kind: 'plugin', name, tokens })),
+  return [
+    ...skills.slice(0, MAX_INSTALLED),
+    ...[...connectors.values()].slice(0, MAX_INSTALLED),
+    ...[...plugins].slice(0, MAX_INSTALLED).map(([name, tokens]): InstalledItem => ({ kind: 'plugin', name, tokens })),
   ]
-
-  return out.slice(0, MAX_INSTALLED)
 }
 
-// How often an installed thing was used. A skill is also known as `plugin:name`, and a plugin skill
-// may be listed with its prefix while the run names the bare skill, so all spellings count.
+// How often an installed thing was used. A plugin's skill is recorded as `plugin:skill` (see
+// skillHits), so it matches only that spelling; any other skill matches its own name.
 export function usedCount(used: UsageItems, item: InstalledItem): number {
-  const names = new Set([item.name])
-  if (item.kind === 'skill') {
-    if (item.plugin !== undefined) names.add(`${item.plugin}:${item.name}`)
-    const colon = item.name.indexOf(':')
-    if (colon > 0) names.add(item.name.slice(colon + 1))
-  }
-  let n = 0
-  for (const name of names) n += used[keyOf(item.kind, name)]?.n ?? 0
+  const name = item.kind === 'skill' && item.plugin !== undefined && !item.name.includes(':') ? `${item.plugin}:${item.name}` : item.name
 
-  return n
+  return used[keyOf(item.kind, name)]?.n ?? 0
 }
 
 export const ofKind = (list: InstalledItem[], kind: UsageKind) => list.filter(x => x.kind === kind)

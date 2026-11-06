@@ -7,27 +7,39 @@ export type Hit = { kind: UsageKind; name: string }
 
 // Names come from skill files and MCP configs: one line, no control characters, capped.
 export const clean = (text: string): string =>
+  // C0 and C1 control characters: the engine refuses a tree that holds one.
   // eslint-disable-next-line no-control-regex
-  text.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, MAX_NAME)
+  text.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, MAX_NAME)
 
 export const keyOf = (kind: UsageKind, name: string) => `${kind}:${name}`
 
+// MCP names spell every character outside letters and digits as `_`.
+const norm = (text: string) => text.replace(/[^A-Za-z0-9]/g, '_')
+
 // `mcp__server__tool`: the connector (server) and, for a plugin's own server
-// (`plugin_<plugin>_<server>`), the plugin that ships it. Null for any other tool.
-export function mcpHits(tool: string): Hit[] {
+// (`plugin_<plugin>_<server>`), the plugin that ships it. `known` are plugin names the caller knows;
+// the longest one that fits wins, so a server name with `_` in it is not cut in the wrong place.
+export function mcpHits(tool: string, known: string[] = []): Hit[] {
   const m = /^mcp__(.+?)__(.+)$/.exec(tool)
   if (m === null) return []
   const server = m[1] ?? ''
+  const match = known
+    .filter(k => k !== '' && server.startsWith(`plugin_${norm(k)}_`))
+    .sort((a, b) => b.length - a.length)[0]
+  if (match !== undefined) return [{ kind: 'connector', name: clean(server.slice(`plugin_${norm(match)}_`.length)) }, { kind: 'plugin', name: clean(match) }]
   const own = /^plugin_(.+)_([^_]+)$/.exec(server)
   if (own !== null) return [{ kind: 'connector', name: clean(own[2] ?? '') }, { kind: 'plugin', name: clean(own[1] ?? '') }]
 
   return [{ kind: 'connector', name: clean(server.replace(/^claude_ai_/, 'claude.ai ').replace(/_/g, ' ')) }]
 }
 
-// A skill run: the skill, and the plugin that ships it.
+// A skill run: the skill, and the plugin that ships it. A plugin's skill is recorded as `plugin:skill`
+// so it is not mixed up with a skill of the same bare name from elsewhere.
 export function skillHits(skill: string, pluginName?: string): Hit[] {
-  const hits: Hit[] = [{ kind: 'skill', name: clean(skill) }]
-  if (pluginName !== undefined && pluginName !== '') hits.push({ kind: 'plugin', name: clean(pluginName) })
+  const hasPlugin = pluginName !== undefined && pluginName !== ''
+  const name = hasPlugin && !skill.includes(':') ? `${pluginName}:${skill}` : skill
+  const hits: Hit[] = [{ kind: 'skill', name: clean(name) }]
+  if (hasPlugin) hits.push({ kind: 'plugin', name: clean(pluginName) })
 
   return hits
 }
@@ -57,10 +69,14 @@ export function asItems(raw: unknown): UsageItems {
     const e = v as Partial<UsageEntry> | null
     if (e === null || typeof e !== 'object') continue
     if (e.kind !== 'skill' && e.kind !== 'plugin' && e.kind !== 'connector') continue
-    if (typeof e.name !== 'string' || e.name === '') continue
+    if (typeof e.name !== 'string') continue
+    const name = clean(e.name)
+    if (name === '') continue
     const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : 0)
-    out[keyOf(e.kind, e.name)] = { kind: e.kind, name: e.name, n: num(e.n), first: num(e.first), last: num(e.last) }
+    out[keyOf(e.kind, name)] = { kind: e.kind, name, n: num(e.n), first: num(e.first), last: num(e.last) }
   }
+  const keys = Object.keys(out)
+  if (keys.length > MAX_ENTRIES) for (const k of keys.sort((a, b) => (out[a]?.last ?? 0) - (out[b]?.last ?? 0)).slice(0, keys.length - MAX_ENTRIES)) delete out[k]
 
   return out
 }

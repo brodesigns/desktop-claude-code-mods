@@ -39,22 +39,35 @@ const sortBy = atom({ plugin: 'usage-pane', key: 'usageSort' } as const, 'most')
 const info = atom({ plugin: 'usage-pane', key: 'usageInfo' } as const, false)
 const confirmReset = atom({ plugin: 'usage-pane', key: 'usageConfirm' } as const, false)
 
+// Store writes one after another: two reads of the store cannot overlap, and a reset is not undone by a count in flight.
+let queue: Promise<unknown> = Promise.resolve()
+function inOrder(job: () => Promise<void>): Promise<void> {
+  const run = queue.then(job, job)
+  queue = run.catch(() => undefined)
+
+  return run
+}
+
 // Counts the hits in the session and, store first, over all sessions (another session's counts stay).
 async function record($: EngineInterface, hits: Hit[]) {
   if (hits.length === 0) return
   const now = await $.clock.now()
   await update($, sessionItems, cur => bump(cur, hits, now))
-  const total = bump(asItems(await $.store.get(STORE_KEY)), hits, now)
-  await $.store.set(STORE_KEY, total)
-  await update($, allItems, () => total)
+  await inOrder(async () => {
+    const total = bump(asItems(await $.store.get(STORE_KEY)), hits, now)
+    await $.store.set(STORE_KEY, total)
+    await update($, allItems, () => total)
+  })
 }
 
 // One finished call of a built-in tool.
 async function recordTool($: EngineInterface, name: string, outcome: Outcome, ms: number) {
   await update($, sessionTools, cur => bumpTool(cur, name, outcome, ms))
-  const total = bumpTool(asToolStats(await $.store.get(TOOLS_KEY)), name, outcome, ms)
-  await $.store.set(TOOLS_KEY, total)
-  await update($, allTools, () => total)
+  await inOrder(async () => {
+    const total = bumpTool(asToolStats(await $.store.get(TOOLS_KEY)), name, outcome, ms)
+    await $.store.set(TOOLS_KEY, total)
+    await update($, allTools, () => total)
+  })
 }
 
 async function load($: EngineInterface) {
@@ -72,14 +85,20 @@ async function refresh($: EngineInterface) {
   await update($, installed, () => list)
 }
 
+async function disarm($: EngineInterface) {
+  if (await read($, confirmReset)) await update($, confirmReset, () => false)
+}
+
 async function resetAll($: EngineInterface) {
   const armed = await read($, confirmReset)
   if (!armed) return update($, confirmReset, () => true)
-  await $.store.set(STORE_KEY, {})
-  await $.store.set(TOOLS_KEY, {})
-  await update($, allItems, () => ({}))
-  await update($, allTools, () => ({}))
-  await update($, confirmReset, () => false)
+  await inOrder(async () => {
+    await $.store.set(STORE_KEY, {})
+    await $.store.set(TOOLS_KEY, {})
+    await update($, allItems, () => ({}))
+    await update($, allTools, () => ({}))
+    await update($, confirmReset, () => false)
+  })
 }
 
 // The limits of the numbers, shown behind "About these numbers".
@@ -88,6 +107,7 @@ const NOTES = [
   'Commands from plugins and your own folders are listed as skills. A command that is code, not a prompt, is listed too and may show as unused.',
   'Tokens are estimates from names and descriptions (about 4 characters a token). Tool schemas and tools loaded on demand are not counted.',
   'A plugin counts only through its skills and its own MCP servers. A plugin with only hooks never shows.',
+  'Refused means refused by a hook. A call you reject at the permission prompt may show as failed.',
   'The lists of what is installed come from the engine and may differ from what you see in the app. Press refresh after connecting a server.',
 ]
 
@@ -172,9 +192,12 @@ export const register: Register = on => {
     } finally {
       try {
         const name = typeof e.tool === 'string' ? e.tool : ''
-        const denied = ran !== null && 'deny' in ran
+        const denied = ran !== null && typeof ran.deny === 'string'
         if (name.startsWith('mcp__')) {
-          if (!denied) await record($, mcpHits(name))
+          if (!denied && ran !== null) {
+            const known = (await read($, installed)).filter(x => x.kind === 'plugin').map(x => x.name)
+            await record($, mcpHits(name, known))
+          }
         } else if (name !== '') {
           const outcome: Outcome = denied ? 'denied' : ran === null || ran.isError === true ? 'failed' : 'ok'
           await recordTool($, name, outcome, (await $.clock.now()) - started)
@@ -261,7 +284,7 @@ export const register: Register = on => {
           ...(narrow ? [] : [{ text: avg(x), width: 7, dim: true }]),
         ], room)
       body = [
-        hint(ui, 'h', `Built-in tools: calls · ✗ failed${narrow ? '' : ' · average time'} · ⊘ refused by a hook. ${failedAll} failed in total.`),
+        hint(ui, 'h', `Built-in tools: calls · ✗ failed${narrow ? '' : ' · average time (includes waiting for approval)'} · ⊘ refused by a hook. ${failedAll} failed in total.`),
         stats.length === 0 ? emptyState(ui, 'empty', '∅', 'No tool call recorded yet.') : <Box key="list" flexDirection="column" gap={SPACE.tight}>{stats.map(row)}</Box>,
       ]
     }
@@ -279,7 +302,7 @@ export const register: Register = on => {
               </Button>
             )}
             {(v === 'used' || v === 'tools') && (
-              <Button key="scope" plain onPress={() => update($, scope, s => (s === 'all' ? 'session' : 'all'))}>
+              <Button key="scope" plain onPress={() => disarm($).then(() => update($, scope, s => (s === 'all' ? 'session' : 'all')))}>
                 <Text size={TYPE.label} color={ACCENT} weight="semibold">{sc === 'all' ? 'all sessions' : 'this session'}</Text>
               </Button>
             )}
@@ -287,7 +310,7 @@ export const register: Register = on => {
         </Box>
         <Box key="views" gap={SPACE.base} flexWrap="wrap">
           {VIEWS.map(x => (
-            <Button key={`view-${x.id}`} plain onPress={() => update($, view, () => x.id)}>
+            <Button key={`view-${x.id}`} plain onPress={() => disarm($).then(() => update($, view, () => x.id))}>
               <Text size={TYPE.body} weight={x.id === v ? 'bold' : 'regular'} color={x.id === v ? ACCENT : undefined}>{x.label}</Text>
             </Button>
           ))}

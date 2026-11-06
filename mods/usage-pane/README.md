@@ -4,7 +4,7 @@ A pane that shows what you use, what you never use and what it costs, to decide 
 
 Four views, switched at the top:
 
-- **Used:** counts per skill, plugin and connector (MCP server). A skill run counts (typed as `/name` or started by the Skill tool), every call of an MCP tool counts for its connector, and a plugin counts when one of its skills or its own MCP servers runs. Refused calls do not count. The toggle at the top right switches `this session` / `all sessions` (with `5m`, `3h`, `12d` since last use). Sort: most or least used first.
+- **Used:** counts per skill, plugin and connector (MCP server). A skill run counts (typed as `/name` or started by the Skill tool), every call of an MCP tool counts for its connector, and a plugin counts when one of its skills or its own MCP servers runs. Calls refused by a hook do not count. The toggle at the top right switches `this session` / `all sessions` (with `5m`, `3h`, `12d` since last use). Sort: most or least used first.
 - **Unused:** what is installed but was never used (all sessions), biggest context cost first. This is the list to remove from.
 - **Context:** everything installed with a rough token estimate (name plus description, about 4 characters a token) and its use count. A row with `0×` in yellow costs context and is never used. Plugins add up their skills and servers.
 - **Tools:** built-in tools (Bash, Read, Edit, …): calls, failed calls (`✗`), calls refused by a hook (`⊘`) and average time, for this session or all sessions.
