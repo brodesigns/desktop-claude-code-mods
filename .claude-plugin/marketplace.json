@@ -74,6 +74,11 @@
       "name": "usage-pane",
       "source": "./mods/usage-pane",
       "description": "Pane that counts which skills, plugins, connectors (MCP servers) and built-in tools are used, lists what is installed but unused, and estimates the context cost of each, to find what is worth removing"
+    },
+    {
+      "name": "permission-log",
+      "source": "./mods/permission-log",
+      "description": "Pane that logs which permission prompts you allowed or declined, shows the ones you keep allowing, and copies a ready allow rule for them"
     }
   ]
 }

@@ -53,6 +53,7 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 | [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search | `/logs` |
 | [`dependency-pane`](mods/dependency-pane) | Dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`, checked with `npm outdated` at the push of a button | `/deps` |
 | [`usage-pane`](mods/usage-pane) | Counts which skills, plugins, connectors (MCP servers) and built-in tools are used, lists what is installed but unused, and estimates the context cost of each, to find what is worth removing | `/toolusage` |
+| [`permission-log`](mods/permission-log) | Logs which permission prompts you allowed or declined, shows the ones you keep allowing and copies a ready allow rule for them | `/permlog` |
 
 ## Contents
 
@@ -133,7 +134,7 @@ claude plugin marketplace add brodesigns/desktop-claude-code-mods
 claude plugin install <mod>@desktop-claude-code-mods
 ```
 
-Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `session-summary`, `kanban-pane`, `log-viewer`, `dependency-pane`, `usage-pane`.
+Mod names: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band`, `prompt-library`, `snippet-pane`, `session-summary`, `kanban-pane`, `log-viewer`, `dependency-pane`, `usage-pane`, `permission-log`.
 
 Example: `claude plugin install bro-cockpit@desktop-claude-code-mods`.
 
@@ -187,7 +188,7 @@ The hooks, bands and commands work in both. The panes draw graphics in the deskt
 
 ### What do the mods access on my machine?
 
-Programs that mods run locally: `git` (`bro-cockpit`, `branch-guard-band`, `deadline-band`, `daily-band`); `open` and `xdg-open` on a click (`bro-cockpit`: project folder, GitHub branch page, a file shown in the file manager; `env-band`: an env file shown in the file manager; `limit-band`: the usage page in your browser); and `npm outdated` only on a button press (`dependency-pane`). `secret-guard` runs nothing. Every program runs as an argument list, never through a shell. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals, the summary language, the usage counts of `usage-pane`) stays in the Claude Code plugin store on your machine. The one mod that sends data to a model is `session-summary`, see [Security and privacy](#security-and-privacy).
+Programs that mods run locally: `git` (`bro-cockpit`, `branch-guard-band`, `deadline-band`, `daily-band`); `open` and `xdg-open` on a click (`bro-cockpit`: project folder, GitHub branch page, a file shown in the file manager; `env-band`: an env file shown in the file manager; `limit-band`: the usage page in your browser); and `npm outdated` only on a button press (`dependency-pane`). `secret-guard` runs nothing. Every program runs as an argument list, never through a shell. Saved data (ideas, prompts, snippets, cards, deadlines, daily totals, the summary language, the usage counts of `usage-pane`, the permission log of `permission-log`) stays in the Claude Code plugin store on your machine. The one mod that sends data to a model is `session-summary`, see [Security and privacy](#security-and-privacy).
 
 ### Can I use only the secret guard?
 
