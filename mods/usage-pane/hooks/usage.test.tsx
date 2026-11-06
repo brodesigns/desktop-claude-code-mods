@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
+import { buildInstalled, estimate, tokenText, usedCount } from './inventory'
+import { asToolStats, avg, bumpTool } from './toolstats'
 import { ago, asItems, bump, MAX_ENTRIES, mcpHits, rank, skillHits } from './usage'
 
 const PANE = {
@@ -110,6 +112,96 @@ test('a refused MCP call and an empty pane count nothing', async ($, on) => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /No skill used yet/ })) != null).toBe(true)
+    await ui.unmount()
+  }
+})
+
+test('installed things: skills, connectors and plugins with a token estimate; builtins left out', () => {
+  const list = buildInstalled(
+    [
+      { name: 'Bash', description: 'Runs a command', mcp: false },
+      { name: 'mcp__github__get_file', description: 'x'.repeat(396), mcp: true },
+      { name: 'mcp__github__list_prs', description: 'y'.repeat(396), mcp: true },
+      { name: 'mcp__plugin_acme_browser__open', description: 'z'.repeat(36), mcp: true },
+    ],
+    [
+      { name: '/init'.slice(1), description: 'builtin', source: 'builtin' },
+      { name: 'review', description: 'a'.repeat(80), source: 'plugin', plugin: 'acme' },
+      { name: 'mine', description: 'b', source: 'user' },
+      { name: 'prompt-x', description: 'c', source: 'mcp' },
+    ],
+  )
+  const names = list.map(x => `${x.kind}:${x.name}`).sort()
+  expect(names).toEqual(['connector:browser', 'connector:github', 'plugin:acme', 'skill:mine', 'skill:review'])
+  expect(list.find(x => x.name === 'github')?.tokens).toBe(estimate('mcp__github__get_file ' + 'x'.repeat(396)) + estimate('mcp__github__list_prs ' + 'y'.repeat(396)))
+  // The plugin carries its skill and its server.
+  const acme = list.find(x => x.kind === 'plugin')
+  expect(acme?.tokens).toBe((list.find(x => x.name === 'review')?.tokens ?? 0) + (list.find(x => x.name === 'browser')?.tokens ?? 0))
+  expect(tokenText(340)).toBe('~340')
+  expect(tokenText(1234)).toBe('~1.2k')
+  // A plugin skill is found under its bare name and under plugin:name.
+  const review = list.find(x => x.name === 'review')!
+  expect(usedCount(bump({}, skillHits('acme:review'), 1), review)).toBe(1)
+  expect(usedCount(bump({}, skillHits('review'), 1), review)).toBe(1)
+  expect(usedCount({}, review)).toBe(0)
+})
+
+test('tool statistics count calls, failures, refusals and time', () => {
+  let s = bumpTool({}, 'Bash', 'ok', 100)
+  s = bumpTool(s, 'Bash', 'failed', 300)
+  s = bumpTool(s, 'Bash', 'denied', 0)
+  expect(s.Bash).toEqual({ name: 'Bash', n: 3, failed: 1, denied: 1, ms: 400 })
+  expect(avg(s.Bash!)).toBe('133ms')
+  expect(avg({ name: 'x', n: 2, failed: 0, denied: 0, ms: 3000 })).toBe('1.5s')
+  expect(asToolStats({ a: { name: 'a', n: -1, failed: 'x' }, b: 3 })).toEqual({ a: { name: 'a', n: 0, failed: 0, denied: 0, ms: 0 } })
+})
+
+test('the Unused, Context and Tools views read the inventory and the statistics', async ($, on) => {
+  const store: Record<string, unknown> = {}
+  on('store.get', (_, e) => ({ value: store[e.key] }))
+  on('store.set', (_, e) => {
+    store[e.key] = JSON.parse(JSON.stringify(e.value))
+    return { value: undefined }
+  })
+  let t = 1000
+  on('clock.now', () => ({ value: (t += 50) }))
+  on('skill.prompt', (_, e) => ({ text: e.text }))
+  on('tool.call', (_, e) => ((e as { tool: string }).tool === 'Read' ? { isError: true, result: 'x', text: 'x' } : { result: 'ok' }))
+  on('tool.list', () => ({ value: [{ name: 'mcp__github__get_file', description: 'x'.repeat(400), mcp: true }] }))
+  on('command.list', () => ({
+    value: [
+      { name: 'commit', description: 'c'.repeat(200), source: 'user' },
+      { name: 'idle-skill', description: 'i'.repeat(800), source: 'user' },
+    ],
+  }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.skill.prompt({ skill: 'commit', text: 'x', source: 'built-in' })
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
+  await $.tool.call({ tool: 'Read', file_path: '/x' })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    // Unused: the idle skill only, with its estimate.
+    await ui.press({ key: 'view-unused' })
+    expect((await ui.find({ type: 'Text', text: 'idle-skill' })) != null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: 'commit' })) == null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: '~203' })) != null).toBe(true)
+    await ui.press({ key: 'tab-connector' })
+    expect((await ui.find({ type: 'Text', text: 'Everything of this kind was used.' })) == null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: 'github' })) != null).toBe(true)
+    // Context: both skills, the used one with its count, the idle one with 0×.
+    await ui.press({ key: 'view-context' })
+    await ui.press({ key: 'tab-skill' })
+    expect((await ui.find({ type: 'Text', text: '0×' })) != null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: '1×' })) != null).toBe(true)
+    // Tools: Bash ok, Read failed.
+    await ui.press({ key: 'view-tools' })
+    expect((await ui.find({ type: 'Text', text: 'Bash' })) != null).toBe(true)
+    expect((await ui.find({ type: 'Text', text: '✗ 1' })) != null).toBe(true)
+    await ui.press({ key: 'view-used' })
     await ui.unmount()
   }
 })

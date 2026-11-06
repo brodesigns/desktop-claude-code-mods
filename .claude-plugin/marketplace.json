@@ -73,7 +73,7 @@
     {
       "name": "usage-pane",
       "source": "./mods/usage-pane",
-      "description": "Pane that counts which skills, plugins and connectors (MCP servers) are used, in this session and over all sessions, to find the ones worth removing"
+      "description": "Pane that counts which skills, plugins, connectors (MCP servers) and built-in tools are used, lists what is installed but unused, and estimates the context cost of each, to find what is worth removing"
     }
   ]
 }

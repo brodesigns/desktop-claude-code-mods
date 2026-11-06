@@ -52,7 +52,7 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 | [`kanban-pane`](mods/kanban-pane) | Small kanban board per project with Open, In progress and Done | `/kanban`, `/card` |
 | [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search | `/logs` |
 | [`dependency-pane`](mods/dependency-pane) | Dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`, checked with `npm outdated` at the push of a button | `/deps` |
-| [`usage-pane`](mods/usage-pane) | Counts which skills, plugins and connectors (MCP servers) are used, in this session and over all sessions, to find the ones worth removing | `/toolusage` |
+| [`usage-pane`](mods/usage-pane) | Counts which skills, plugins, connectors (MCP servers) and built-in tools are used, lists what is installed but unused, and estimates the context cost of each, to find what is worth removing | `/toolusage` |
 
 ## Contents
 
