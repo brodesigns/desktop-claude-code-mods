@@ -125,7 +125,7 @@ More screenshots follow: the Project tab with ideas, the prompt library, the kan
 
 The marketplace is `brodesigns/desktop-claude-code-mods`. It lists all 15 mods.
 
-**Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app.
+**Claude desktop app:** click the plus next to the prompt box, open Plugins, choose Add marketplace, enter `brodesigns/desktop-claude-code-mods`, then add the mods you want. `/plugin` does not run in the desktop app. Step by step, with a table of which mod to try first: [docs/03-install-in-claude-desktop.md](docs/03-install-in-claude-desktop.md).
 
 **Terminal:** add the marketplace once, then install each mod you want with the same pattern:
 
@@ -227,6 +227,7 @@ Mods run with your permissions. The mods make no network requests of their own, 
 
 1. [docs/01-basics.md](docs/01-basics.md): structure, types, testing, installing, developing
 2. [docs/02-rules-and-pitfalls.md](docs/02-rules-and-pitfalls.md): rules and pitfalls found while building
+3. [docs/03-install-in-claude-desktop.md](docs/03-install-in-claude-desktop.md): step by step guide for the Claude desktop app
 
 ## Contributing and license
 
