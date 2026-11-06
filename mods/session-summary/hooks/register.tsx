@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
-import { ASK_MAX, bullets, buildPrompt, cleanLanguage, clip, digestTurn, isReady, isTrivial, LANGUAGES, MAX_TOKENS, parseSummary, RESTATE_SYSTEM, systemFor, tokensWord, WAITING_MAX } from './digest'
+import { ASK_MAX, bullets, buildPrompt, cleanLanguage, clip, digestTurn, isReady, isTrivial, LANGUAGES, MAX_TOKENS, parseSummary, systemFor, tokensWord, WAITING_MAX } from './digest'
 import { redact } from './keys'
 import { isNarrow } from './layout'
 import { emptyState, note, SPACE, TYPE } from './style'
@@ -138,31 +138,8 @@ async function nextLanguage($: EngineInterface) {
   } catch {
     // The choice holds for this session even when it cannot be kept.
   }
-  await restate($, next)
-}
-
-// A summary that exists is written again in the new language, from its own text (a few dozen tokens).
-// Skipped while an update runs: that one writes in the language it started with, the next one in the new.
-async function restate($: EngineInterface, language: string) {
-  const current = await read($, summary)
-  if (current === null || isRunning) return
-  isRunning = true
-  try {
-    await update($, isBusy, () => true)
-    const reply = await $.model.complete({ model, system: RESTATE_SYSTEM(language), prompt: `<summary>\n${current.text.replace(/[<>]/g, '')}\n</summary>`, maxTokens: MAX_TOKENS, effort: 'low', timeoutMs: 30_000 })
-    const text = reply.isAnswered ? parseSummary(redact(reply.text)) : ''
-    if (reply.isAnswered && text !== '') {
-      const spent = reply.usage.input_tokens + reply.usage.output_tokens
-      await update($, summary, cur => (cur === null ? cur : { ...cur, text, tokens: cur.tokens + spent }))
-    } else {
-      await update($, told, () => ({ text: `Not rewritten in ${language}: the next update will use it.`, tone: 'warning' as const }))
-    }
-  } catch {
-    await update($, told, () => ({ text: `Not rewritten in ${language}: the next update will use it.`, tone: 'warning' as const }))
-  } finally {
-    isRunning = false
-    await update($, isBusy, () => false)
-  }
+  // No model call here: the next scheduled update writes in the new language (it sees the old summary and rewrites it).
+  await update($, told, () => ({ text: `Language: ${next}. The next update uses it.`, tone: 'success' as const }))
 }
 
 // `auto: false` in the settings is final: a choice made earlier in the pane never turns it back on.
@@ -186,7 +163,7 @@ async function toggleAuto($: EngineInterface) {
     // The choice holds for this session even when it cannot be kept.
   }
   // Switching on with turns waiting: catch up now instead of at the next answer.
-  if (next && (await read($, waiting)).length > 0) void summarize($)
+  if (next && (await read($, waiting)).length > 0) summarize($).catch(() => undefined)
 }
 
 // Whether the pane is placed; an unreadable answer counts as "yes" so a failing check never silences the summary.
@@ -207,7 +184,7 @@ async function maybeSummarize($: EngineInterface) {
   if (queue.length === 0) return
   const hasSummary = (await read($, summary)) !== null
   if (!isReady(queue.length, hasSummary, (await $.clock.now()) - lastTurnAt)) return
-  if (await isPaneUp($)) void summarize($)
+  if (await isPaneUp($)) summarize($).catch(() => undefined)
 }
 
 // A finished turn of the main thread becomes one digest, unless it adds nothing.
@@ -242,7 +219,7 @@ export const register: Register = (on, options) => {
       // No saved choice: the setting applies.
     }
     // Opens by itself only while auto is on; `/summary` opens it any time.
-    if (await isAutomatic($)) void $.ui.open({ id: PANE, title: 'Summary' })
+    if (await isAutomatic($)) $.ui.open({ id: PANE, title: 'Summary' }).catch(() => undefined)
     // Waiting turns are sent in batches: this tick sends what a quiet minute and a half or a newly opened pane left over.
     timer?.cancel()
     timer = $.clock.every(10_000, () => void maybeSummarize($))

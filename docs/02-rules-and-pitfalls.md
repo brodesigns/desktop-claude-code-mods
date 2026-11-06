@@ -88,9 +88,9 @@ Counted by reading the code, not measured in the app. Basis: whoever reads an at
 |---|---|
 | Reads in the head | 3 per draw (`cockpitTab`, `headCounts`, `gitInfo`), none twice |
 | Overview tab | 1 more read (`headCounts`) |
-| Writes per tool call | 2 (`begin`, `finish` on `callList`), 3 for Read, Write, Edit (`track` on `fileList`), +1 for subagents. Plus `headCounts` only when a number changes. So the head and the overview usually redraw once, only the tabs that show the list redraw on every write |
+| Writes per tool call | 3 (`begin` on `callList` and `callTotal`, `finish` on `callList`), 4 for Read, Write, Edit (`track` on `fileList`), +1 for subagents. Plus `headCounts` only when a number changes. So the head and the overview usually redraw once, only the tabs that show the list redraw on every write |
 | Writes without change | none: `meter`, `gitInfo`, `headCounts` go through `setIfChanged` |
-| git (band) | one process (`status`) every 15 s. The project (`rev-parse`, `loadProject`) only at start and when `$.session.cwd()` changes. Keeps running with the pane closed, because the band is always visible |
+| git (band) | one process (`status`) every 15 s, plus `remote get-url origin` on the timer's poll only (never per tool call). The project (`rev-parse`, `loadProject`) only at start and when `$.session.cwd()` changes. Keeps running with the pane closed, because the band is always visible |
 | Timers | the return value of `$.clock.every` is kept, a second `start` ends the old timer |
 | Interactive graphics | at most 6 in the tree: head 1, tab 5 (`LIVE_MAX` in `style.tsx`), running states first. The context ring (Instruments) is a picture of its end state |
 | Lists | all capped, only `ideaList` has no cap (user data, stored durably) |

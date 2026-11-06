@@ -82,7 +82,13 @@ async function save($: EngineInterface, args: string): Promise<{ text: string; t
   return { text: `${head} Warning: ${masked} ${masked === 1 ? 'place looked' : 'places looked'} like a key and ${masked === 1 ? 'was' : 'were'} redacted.`, tone: 'warning' }
 }
 
-const fenced = (s: Snippet) => `\`\`\`${s.lang === 'text' ? '' : s.lang}\n${s.code}\n\`\`\`\n`
+// The fence is longer than any run of backticks in the code, so a snippet that holds ``` stays one block.
+const fenced = (s: Snippet) => {
+  const longest = Math.max(0, ...(s.code.match(/`+/g) ?? []).map(run => run.length))
+  const fence = '`'.repeat(Math.max(3, longest + 1))
+
+  return `${fence}${s.lang === 'text' ? '' : s.lang}\n${s.code}\n${fence}\n`
+}
 
 // "insert": at the caret in the prompt box, as a fenced block; else the clipboard; else the code opens to copy.
 async function insert($: EngineInterface, s: Snippet, surface: RenderSurface) {

@@ -32,8 +32,8 @@ async function refresh($: EngineInterface) {
 
 async function start($: EngineInterface) {
   timer?.cancel()
-  timer = $.clock.every(POLL_MS, () => void refresh($))
-  void refresh($)
+  timer = $.clock.every(POLL_MS, () => { refresh($).catch(() => undefined) })
+  refresh($).catch(() => undefined)
 }
 
 export const register: Register = (on, options) => {
@@ -70,8 +70,8 @@ export const register: Register = (on, options) => {
           <Box flexShrink={0}><Text color="#39639E" size="caption">▌</Text></Box>
           <Box flexShrink={1} minWidth={0} overflow="hidden">
             <Button key="guard" plain onPress={press => {
-              void $.ui.copy({ text: 'git switch -c ', surface: press.surface })
-              void $.ui.toast('Copied "git switch -c ", add a branch name')
+              $.ui.copy({ text: 'git switch -c ', surface: press.surface }).catch(() => undefined)
+              $.ui.toast('Copied "git switch -c ", add a branch name')
             }}>
               <Text size="caption" color="warning" weight="semibold" wrap="truncate">{`⚠ Working directly on ${branch}`}</Text>
               {showHint && !isNarrow ? <Text size="caption" dimColor wrap="truncate">{' · click to copy: git switch -c'}</Text> : ''}

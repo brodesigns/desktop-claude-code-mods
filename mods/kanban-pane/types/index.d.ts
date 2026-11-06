@@ -14,6 +14,8 @@ declare module 'claude-code' {
       kanbanNew: boolean
       // Cards opened to show their full text and actions.
       kanbanOpen: number[]
+      // Columns drawn without the per-column cap.
+      kanbanExpanded: Column[]
     }
   }
 }

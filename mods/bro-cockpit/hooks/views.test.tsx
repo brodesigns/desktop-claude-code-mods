@@ -166,3 +166,24 @@ test('every tab has a back button to the overview, the overview has none', async
   expect((await home.find({ type: 'Button', text: /^‹ Overview$/ })) == null).toBe(true)
   await home.unmount()
 })
+
+// The engine refuses a tree deeper than 32 levels: a long subagent chain must still draw.
+test('a very deep subagent chain still draws in the tree view', async ($, on) => {
+  const chain = Array.from({ length: 60 }, (_, n) => ({
+    id: `a${n}`, type: 'Explore', description: `level ${n}`, isBackground: false, isDone: n < 59, isFailed: false, tools: 1, last: '', startedAt: 1, endedAt: 2, parent: n === 0 ? '' : `a${n - 1}`,
+  }))
+  on('state.get', (_, e) => {
+    const key = (e as { key: string }).key
+
+    return { value: { value: key === 'cockpitTab' ? 'agents' : key === 'agentView' ? 'tree' : key === 'agentList' ? chain : undefined, version: 1 } }
+  })
+  on('state.set', () => ({ value: { isSet: true as const, version: 2 } }))
+  on('clock.now', () => ({ value: 1 }))
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /has an error/ })) == null).toBe(true)
+    expect((await ui.find({ text: /level 59/ })) != null).toBe(true)
+    await ui.unmount()
+  }
+})

@@ -3,6 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import { shortHash } from './hash'
 import { idOf } from './library'
 import { projectOf } from './project'
+import { holeHint } from './register'
 
 const ROOT = '/home/x/demo'
 const PROJECT_KEY = projectOf(ROOT, 'prompts').key
@@ -248,4 +249,19 @@ test("another session's global prompts show after a turn; a delete needs the sam
   await ui.press({ key: `rm-${mine}` })
   expect((store['prompts:global'] as { text: string }[]).map(p => p.text)).toEqual(['Z'])
   await ui.unmount()
+})
+
+test('a snippet with triple backticks is drawn as plain text, nothing wraps it in a fence', async ($, on) => {
+  const text = 'Run:\n```sh\nnpm test\n```\nand ````nested```` too.'
+  world(on, { 'prompts:global': [prompt('global', 'fenced', text)] })
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `open-${shortHash(idOf('global', 'fenced'))}` })
+  expect((await ui.find({ type: 'Text', text: /```sh/ })) != null).toBe(true)
+  expect((await ui.find({ type: 'Text', text: /````nested````/ })) != null).toBe(true)
+  await ui.unmount()
+})
+
+test('the hint for surfaces without input fields names the command and the holes', () => {
+  expect(holeHint('review', ['file', 'lang'])).toBe('No input field here. Fill {{file}}, {{lang}} with /p review value | value.')
 })

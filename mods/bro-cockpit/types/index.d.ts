@@ -91,6 +91,8 @@ declare module 'claude-code' {
       agentList: AgentRow[]
       agentNow: number
       callList: Call[]
+      // Every tool call of the session (the list keeps only the newest).
+      callTotal: number
       fileList: FileRow[]
       cockpitTab: string
       ideaList: Idea[]

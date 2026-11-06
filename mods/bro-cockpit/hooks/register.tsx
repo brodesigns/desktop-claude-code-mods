@@ -128,7 +128,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'cockpit', description: 'Open the cockpit pane: /cockpit [home|files|agents|calls|meter|errors|todo|project]' })
-    void $.ui.open({ id: PANE, title: 'Cockpit' })
+    $.ui.open({ id: PANE, title: 'Cockpit' }).catch(() => undefined)
     await startGit($)
     await startAgents($)
     await startMeter($)
@@ -145,7 +145,7 @@ export const register: Register = (on, options) => {
     if (want !== '' && isKnown) await update($, tab, () => want)
     await $.ui.open({ id: PANE, title: 'Cockpit' })
     // The todo polls rest while the pane is closed: look once now.
-    void todoOpened($)
+    todoOpened($).catch(() => undefined)
     if (isKnown) return { text: 'Cockpit pane opened.' }
 
     return { text: `Unknown tab "${want}". Try: ${tabs.map(t => t.id).join(', ')}` }
@@ -168,7 +168,7 @@ export const register: Register = (on, options) => {
     await finish($, call, ran)
     await track($, e, ran)
     // Display only, nobody waits for these: a `git grep` or `git status` must not delay the tool result.
-    void todoTouched($, e, ran)
+    todoTouched($, e, ran).catch(() => undefined)
     gitTouched($, e.tool)
     await refreshCounts($)
 

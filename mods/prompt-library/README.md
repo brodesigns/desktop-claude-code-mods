@@ -2,7 +2,7 @@
 
 A prompt library for Claude Code: save a prompt once and reuse it in every project. One pane with search, plus three commands. No model tokens.
 
-- **Pane:** a light list, one line per prompt: the name, `▣` for project prompts. `↳` uses it at once. A click on the name opens the text with `⧉ copy`, `↵ send` and `✕ delete` (and the fields for placeholders). `＋ new` opens a field for a new prompt with a choice of "all projects" or "only this project". The search field appears from 6 prompts on. After a successful save the field closes. Feedback notes disappear after 8 seconds or when `＋ new` is toggled.
+- **Pane:** a light list, one line per prompt: the name, `▣` for project prompts. `↳` uses it at once. A click on the name opens the text with `⧉ copy`, `↵ send` and `✕ delete` (and the fields for placeholders; where a surface draws no input field, the opened prompt shows the `/p <name> value | value` form instead and `↳` uses the text at once). `＋ new` opens a field for a new prompt with a choice of "all projects" or "only this project". The search field appears from 6 prompts on. After a successful save the field closes. Feedback notes disappear after 8 seconds or when `＋ new` is toggled.
 - **Use:** puts the prompt into the prompt box without sending it (`$.prompt.fill`). If that fails, the text goes to the clipboard. If that fails too, the entry expands and shows the full text to copy; `↵ send` then sends it directly as a prompt of its own.
 - **Placeholders:** `{{file}}` in the text. When you use the prompt from the pane, the opened entry asks for the values. Empty values stay as `{{…}}` in the text.
 

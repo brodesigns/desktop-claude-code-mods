@@ -16,6 +16,8 @@ const now = atom({ plugin: 'bro-cockpit', key: 'agentNow' } as const, 0)
 const viewMode = atom({ plugin: 'bro-cockpit', key: 'agentView' } as const, 'list')
 const tab = atom({ plugin: 'bro-cockpit', key: 'cockpitTab' } as const, 'home')
 const DONE_SHOWN = 8
+// Deepest level the tree view nests; deeper agents are listed flat (the engine allows 32 levels of tree).
+const TREE_NEST = 8
 
 const patch = (id: string, fn: (a: AgentRow) => AgentRow) => (list: AgentRow[]) =>
   list.map(a => (a.id === id ? fn(a) : a))
@@ -124,15 +126,23 @@ export async function view($: EngineInterface, e: RenderInput) {
   const age = (a: AgentRow) => secs((a.isDone ? a.endedAt : Math.max(t, a.startedAt)) - a.startedAt)
 
   // Tree: one card per agent, children indented under their parent.
-  const branch = (a: AgentRow, depth: number): JSX.Element => (
-    <Box key={`node-${a.id}`} flexDirection="column" gap={SPACE.tight} marginLeft={Math.min(depth, 4) * 2}>
-      {card(ui, `nc-${a.id}`, isCalm(a) ? 'neutral' : toneOf(a), [
-        cardHead(ui, 'h', [<Text key="tree" dimColor>└ </Text>, statusDot(ui, 'd', toneOf(a)), a.type], <Text dimColor tabular size={TYPE.label}>{wordOf(a)} · {age(a)} · {a.tools} tools</Text>),
-        line(ui, 'desc', a.description, { size: 'caption' }),
-      ])}
-      {byParent(a.id).map(k => branch(k, depth + 1))}
-    </Box>
-  )
+  // Nesting stops at TREE_NEST levels: deeper agents follow as siblings at the same indent, because the engine
+  // refuses a tree deeper than 32 levels and would blank the whole pane.
+  const branch = (a: AgentRow, depth: number): JSX.Element[] => {
+    const kids = byParent(a.id).flatMap(k => branch(k, depth + 1))
+    const nest = depth < TREE_NEST
+    const node = (
+      <Box key={`node-${a.id}`} flexDirection="column" gap={SPACE.tight} marginLeft={Math.min(depth, 4) * 2}>
+        {card(ui, `nc-${a.id}`, isCalm(a) ? 'neutral' : toneOf(a), [
+          cardHead(ui, 'h', [<Text key="tree" dimColor>└ </Text>, statusDot(ui, 'd', toneOf(a)), a.type], <Text dimColor tabular size={TYPE.label}>{wordOf(a)} · {age(a)} · {a.tools} tools</Text>),
+          line(ui, 'desc', a.description, { size: 'caption' }),
+        ])}
+        {nest && kids}
+      </Box>
+    )
+
+    return nest ? [node] : [node, ...kids]
+  }
 
   const shown = list.filter(a => !hidden.has(a.id))
 
@@ -151,7 +161,7 @@ export async function view($: EngineInterface, e: RenderInput) {
       {mode === 'tree' && list.length > 0 && (
         <Box flexDirection="column" gap={SPACE.tight}>
           <Text weight="semibold" size={TYPE.body}><Text color="claude">◆ </Text>Main session</Text>
-          {roots.map(a => branch(a, 1))}
+          {roots.flatMap(a => branch(a, 1))}
         </Box>
       )}
       {mode === 'list' && more(ui, 'agents-more', hidden.size, 'more done (older)')}
