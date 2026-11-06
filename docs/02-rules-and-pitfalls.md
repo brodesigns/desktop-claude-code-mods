@@ -2,6 +2,8 @@
 
 Everything here happened while building the mods in this repo. `validate` reports most of it right away.
 
+**The short list:** one hooks module per plugin, `$` only to top-level function declarations, one hook per event without a matcher, no model tokens, write only what changed, every tab inside `safe()`, redact before you store, test every layout at 36, 50 and 80 columns.
+
 ## Structure
 
 - **One hooks module per plugin.** A `hooks.json` with two entries is rejected. Fix: `register.tsx` imports the parts and calls them.
@@ -10,6 +12,7 @@ Everything here happened while building the mods in this repo. `validate` report
 - **Never the same event without a matcher twice.** `validate` rejects two `on('session.start', ...)` or two `on('tool.call', ...)` in different parts. Fix: one hook in `register.tsx` that calls the parts' functions one after another (`startX($)`, `begin($, e)`, `finish($, call, ran)`).
 - **Do not shadow `next`.** A variable `next` inside the hook (`const next = ...`) is rejected. Use another name, for example `fresh`.
 - **Reserved command names:** `/agents` and other Claude Code commands cannot be registered. The cockpit uses `/cockpit`.
+- **No code shared between mods.** Every mod is installed on its own, so it cannot import from another mod's folder. A helper several mods need is copied (`style.tsx`, `layout.ts`, `keys.ts`, `hash.ts`). Change every copy together.
 - **Type contract:** every state key is listed in `types/index.d.ts`. If one is missing, `validate` fails.
 
 ## Behavior
@@ -88,12 +91,12 @@ Counted by reading the code, not measured in the app. Basis: whoever reads an at
 |---|---|
 | Reads in the head | 3 per draw (`cockpitTab`, `headCounts`, `gitInfo`), none twice |
 | Overview tab | 1 more read (`headCounts`) |
-| Writes per tool call | 3 (`begin` on `callList` and `callTotal`, `finish` on `callList`), 4 for Read, Write, Edit (`track` on `fileList`), +1 for subagents. Plus `headCounts` only when a number changes. So the head and the overview usually redraw once, only the tabs that show the list redraw on every write |
+| Writes per tool call | 3 (`begin` on `callList` and `callTotal`, `finish` on `callList`), 4 for Read, Write, Edit (`track` on `fileList`), +1 for subagents, +2 with the Usage tab on (this session's and all sessions' count of the tool or connector; the store only once per turn). Plus `headCounts` only when a number changes. So the head and the overview usually redraw once, only the tabs that show the list redraw on every write |
 | Writes without change | none: `meter`, `gitInfo`, `headCounts` go through `setIfChanged` |
 | git (band) | one process (`status`) every 15 s, plus `remote get-url origin` on the timer's poll only (never per tool call). The project (`rev-parse`, `loadProject`) only at start and when `$.session.cwd()` changes. Keeps running with the pane closed, because the band is always visible |
 | Timers | the return value of `$.clock.every` is kept, a second `start` ends the old timer |
 | Interactive graphics | at most 6 in the tree: head 1, tab 5 (`LIVE_MAX` in `style.tsx`), running states first. The context ring (Instruments) is a picture of its end state |
-| Lists | all capped, only `ideaList` has no cap (user data, stored durably) |
+| Lists | all capped (usage counts too), only `ideaList` has no cap (user data, stored durably) |
 
 ### Rules
 

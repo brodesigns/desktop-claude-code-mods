@@ -1,5 +1,7 @@
 # 01 Basics
 
+For people who build or change mods. To only use them, read [03 Install](03-install-in-claude-desktop.md). Next: [02 Rules and pitfalls](02-rules-and-pitfalls.md).
+
 ## What a mod is
 
 A plugin with a hooks module. The module exports `register`, receives `on` and attaches hooks to engine events. It has no DOM and no Node. It reaches everything outside through `$`.

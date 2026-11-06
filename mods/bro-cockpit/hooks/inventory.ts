@@ -22,10 +22,9 @@ export function buildInstalled(tools: ToolInfo[], commands: CommandInfo[]): Inst
   for (const c of commands) {
     if (c.source !== 'plugin' && c.source !== 'user') continue
     const name = clean(c.name)
-    // This mod's own command is code, not a skill.
     // A plugin's skills are named `plugin:skill`; a bare name from a plugin is a code command, not context.
     const isCode = c.source === 'plugin' && c.plugin !== undefined && !c.name.includes(':')
-    if (name === '' || name === 'toolusage' || isCode || seen.has(name)) continue
+    if (name === '' || isCode || seen.has(name)) continue
     seen.add(name)
     const tokens = estimate(`${c.name} ${c.description}`)
     const plugin = c.plugin === undefined ? undefined : clean(c.plugin)

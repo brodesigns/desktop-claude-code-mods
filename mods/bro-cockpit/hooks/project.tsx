@@ -19,7 +19,6 @@ const KINDS = [
 ] as const
 const NEXT: Record<string, string> = { open: 'running', running: 'done', done: 'open' }
 const MARK: Record<string, string> = { open: '○ open', running: '◐ running', done: '● done' }
-const TONE: Record<string, string> = { open: 'text', running: 'warning', done: 'success' }
 
 // Folder name plus a short hash of the full root path: two repos with the same name keep their own ideas.
 const keyOf = (project: string, root: string) => `project:${project}:${shortHash(root)}`

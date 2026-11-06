@@ -6,6 +6,6 @@ Band above the prompt: warns when you work directly on a protected branch. Displ
 - **When:** a `git symbolic-ref HEAD` in the project every 15 seconds, and right after every Bash command by Claude that contains `git`.
 - **Settings:** `branches` (default `main,master`, comma separated, `*` as wildcard, e.g. `release/*`), `hint` (show the hint, default on).
 
-Installation: `claude plugin install branch-guard-band@desktop-claude-code-mods`, details in `../../README.md`.
+Installation: `claude plugin install branch-guard-band@desktop-claude-code-mods`, details in the [main README](../../README.md).
 
 Limits: the band only warns, it stops no commit and no push. A branch switch outside Claude shows with the next check, so after 15 seconds at most.

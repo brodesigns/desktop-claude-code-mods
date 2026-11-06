@@ -84,13 +84,18 @@ export async function flushUsage($: EngineInterface) {
         let total = asItems(await $.store.get(STORE_KEY))
         for (const h of hits) total = bump(total, h.hits, h.at)
         await $.store.set(STORE_KEY, total)
-        await update($, allItems, () => total)
+        // Counts that arrived during the write are not in the store yet; keep them in the shown numbers.
+        let shown = total
+        for (const h of pendingHits) shown = bump(shown, h.hits, h.at)
+        await update($, allItems, () => shown)
       }
       if (tools.length > 0) {
         let total = asToolStats(await $.store.get(TOOLS_KEY))
         for (const t of tools) total = bumpTool(total, t.name, t.outcome, t.ms)
         await $.store.set(TOOLS_KEY, total)
-        await update($, allTools, () => total)
+        let shown = total
+        for (const t of pendingTools) shown = bumpTool(shown, t.name, t.outcome, t.ms)
+        await update($, allTools, () => shown)
       }
     } catch (err) {
       // Keep what was not saved for the next try (capped).
@@ -233,6 +238,7 @@ export async function usageView($: EngineInterface, e: RenderInput) {
   const all: UsageItems = stock || (v === 'used' && sc === 'all') ? await read($, allItems) : {}
   const items: UsageItems = v !== 'used' ? {} : sc === 'all' ? all : await read($, sessionItems)
   const have: InstalledItem[] = stock ? await read($, installed) : []
+  const toolStats: ToolStat[] = v === 'tools' ? Object.values(sc === 'all' ? await read($, allTools) : await read($, sessionTools)) : []
   const now = await $.clock.now()
   const narrow = isNarrow(e)
   const current = KINDS.find(x => x.kind === t) ?? KINDS[0]!
@@ -264,7 +270,6 @@ export async function usageView($: EngineInterface, e: RenderInput) {
     ]
   } else if (v === 'context') {
     const list = ofKind(have, current.kind).sort((a, b) => b.tokens - a.tokens)
-    const sum = list.reduce((s, x) => s + x.tokens, 0)
     body = [
       list.length === 0
         ? emptyState(ui, 'usage-empty', '∅', have.length === 0 ? 'Nothing read yet. Press refresh.' : 'Nothing installed of this kind.')
@@ -274,8 +279,8 @@ export async function usageView($: EngineInterface, e: RenderInput) {
         })),
     ]
   } else {
-    const stats = Object.values(sc === 'all' ? await read($, allTools) : await read($, sessionTools)).sort((a, b) => b.n - a.n)
-        const line = (x: ToolStat) =>
+    const stats = [...toolStats].sort((a, b) => b.n - a.n)
+    const line = (x: ToolStat) =>
       row(ui, `t-${x.name}`, x.denied > 0 ? `${x.name} (⊘ ${x.denied})` : x.name, [
         { text: `${x.n}×`, width: 6, bold: true },
         { text: x.failed > 0 ? `✗ ${x.failed}` : '·', width: 5, color: x.failed > 0 ? 'error' : undefined, dim: x.failed === 0 },
@@ -287,7 +292,6 @@ export async function usageView($: EngineInterface, e: RenderInput) {
   }
 
   const sum = (list: InstalledItem[]) => list.reduce((n, x) => n + x.tokens, 0)
-  const toolStats = v === 'tools' ? Object.values(sc === 'all' ? await read($, allTools) : await read($, sessionTools)) : []
   const shownItems = v === 'used' ? Object.values(items).filter(i => i.kind === current.kind) : []
   const shownHave = ofKind(have, current.kind)
   const failed = toolStats.reduce((n, x) => n + x.failed, 0)

@@ -8,6 +8,6 @@ A pane that logs your permission prompts: which ones you allowed, which ones you
 - **Scope:** `this session` or `all sessions` (kept in the plugin store, written once per turn and at the end of the session). `Reset all` asks once more before it clears the stored counts.
 - **Commands:** `/permlog` opens the pane.
 
-Installation: `claude plugin install permission-log@desktop-claude-code-mods`, details in `../../README.md`.
+Installation: `claude plugin install permission-log@desktop-claude-code-mods`, details in the [main README](../../README.md).
 
 Limits: it counts only from the moment it is installed, and only prompts, so calls your rules already allow never show. Allowed and declined are read from the order of events (the prompt happens inside the tool call, then the call returns or comes back refused), not from the dialog itself. A person's "no" is recognized by a hook's deny or the engine's rejection wording, so another wording would count as allowed. Hooking permission prompts keeps the mod on the engine's list of mods that block Code Mode tool calls. Commands and file names are redacted for known key patterns; a rule that held a secret cannot be copied. It keeps at most 150 rules. Only rules, short examples and numbers are stored.

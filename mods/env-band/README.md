@@ -9,6 +9,6 @@ Band above the prompt: shows which environment is active in the project and whic
 - **When:** a look into the project folder every 30 seconds, and right away when Claude writes a `.env` file. Only files whose size or modification time changed are read again.
 - **Settings:** `variables` (default `NODE_ENV,APP_ENV,ENV`, the first one found wins), `ignoreTemplates` (skip `.env.example`, `.env.sample`, `.env.template`, `.env.tpl`, `.env.dist`, default on).
 
-Installation: `claude plugin install env-band@desktop-claude-code-mods`, details in `../../README.md`.
+Installation: `claude plugin install env-band@desktop-claude-code-mods`, details in the [main README](../../README.md).
 
 Limits: the band reads only the files, not the environment of the running process. Which file a framework really loads depends on the framework and the mode; the order above is an estimate, not a copy of any framework. Only the project folder itself is searched, no subfolders. At most 20 files, each up to 256 KiB.

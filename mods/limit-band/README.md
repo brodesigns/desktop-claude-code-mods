@@ -14,6 +14,6 @@ Band above the prompt for the subscription's usage limit: how much of the 5-hour
 
 Settings (`/config`): `fiveHour` (always show the 5-hour limit, default on), `threshold` (threshold in percent for the other windows, default 50), `sevenDay` (show the 7-day limit, default on).
 
-Installation: `claude plugin install limit-band@desktop-claude-code-mods`, details in `../../README.md`.
+Installation: `claude plugin install limit-band@desktop-claude-code-mods`, details in the [main README](../../README.md).
 
 Limits: the numbers come from the last API response (`$.session.usage()`). Without a subscription (API key) Claude Code reports no limits, and the band stays off. Other sessions use up the same limit; the band sees that only with its own next response.

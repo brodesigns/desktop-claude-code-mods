@@ -31,14 +31,14 @@ Every mod is its own plugin, install only what you need. Full details are in eac
 | [`branch-guard-band`](mods/branch-guard-band/README.md) | Warns when you work directly on `main` | none |
 | [`env-band`](mods/env-band/README.md) | Shows the active environment and the `.env` files | none |
 | [`limit-band`](mods/limit-band/README.md) | Shows your 5-hour and 7-day usage limit and when it resets | none |
-| [`prompt-library`](mods/prompt-library/README.md) | Saves prompts once, reuses them in every project | `/prompts`, `/p` |
+| [`prompt-library`](mods/prompt-library/README.md) | Saves prompts once, reuses them in every project | `/prompts`, `/p`, `/prompt-save` |
 | [`permission-log`](mods/permission-log/README.md) | Logs permission prompts, offers rules for the ones you always allow | `/permlog` |
 
 ### `bro-cockpit`: Claude Code session dashboard
 
 | Tab | Shows |
 |---|---|
-| Overview | One tile per tab, red problems in an attention card |
+| Overview | One tile per tab (except Usage), red problems in an attention card |
 | Files | Files Claude read, wrote or edited, with lines added |
 | Subagents | Status, runtime and tool calls of every subagent, list or tree |
 | Tool calls | Timeline of every call, details on click, filters |
@@ -58,7 +58,7 @@ Blocks `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` calls that contai
 
 - **`branch-guard-band`:** `⚠ Working directly on main`, a click copies `git switch -c`. Protected branches are configurable.
 - **`env-band`:** `◉ development .env.local .env`, red for production. Reads only the environment name, never other values.
-- **`limit-band`:** `◔ 5h 72% · ↻ 1 h 23 min`, yellow from 80 %, red from 95 %. Needs a subscription.
+- **`limit-band`:** `◔ 5h 72% · ↻ 1 h 23 min`, yellow from 80%, red from 95%. Needs a subscription.
 
 ### Panes
 

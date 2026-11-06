@@ -30,4 +30,4 @@ After every turn both lists are re-read from the store (the global list is share
 - Text that looks like a key is redacted before it is saved. This is an aid, not a guaranteed protection.
 - When the prompt box refuses, `/p` shows the full text as the command's output; the model reads it along with the next turn.
 
-Installation: `claude plugin install prompt-library@desktop-claude-code-mods`, details in `../../README.md`.
+Installation: `claude plugin install prompt-library@desktop-claude-code-mods`, details in the [main README](../../README.md).

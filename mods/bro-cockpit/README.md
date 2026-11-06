@@ -2,21 +2,22 @@
 
 A session dashboard for Claude Code in the Claude desktop app: one pane with tabs next to the chat and a git band above the prompt. Costs no model tokens.
 
-- **Tabs:** Overview (tiles and an attention card for anything red), Files (read and changed), Subagents (list, tree view, animated worker), Tool calls, Instruments (context window, 5 hour rate limit, cost), Errors (failed tool calls), Todo (the open items of the project's `todo.md` as a checklist and the TODO, FIXME, HACK and XXX markers found anywhere in the project, except in binary files, lock files and prose documents such as `.md` and `.txt`), Project (info, scripts, ideas and change requests), Usage (counts of skills, plugins, connectors and built-in tools per session and over all sessions, what was never used, what each costs in context; switch it off in `/config` and nothing is counted).
+- **Tabs:** Overview (tiles and an attention card for anything red), Files (read and changed), Subagents (list, tree view, animated worker), Tool calls, Instruments (context window, 5-hour and 7-day limit, cost, cache hit rate), Errors (failed tool calls), Todo (the open items of the project's `todo.md` as a checklist and the TODO, FIXME, HACK and XXX markers found anywhere in the project, except in binary files, lock files and prose documents such as `.md` and `.txt`), Project (info, scripts, ideas and change requests), Usage (counts of skills, plugins, connectors and built-in tools per session and over all sessions, what was never used, what each costs in context; switch it off in `/config` and nothing is counted).
 - **Git band:** project, branch, uncommitted changes, commits to push or pull. Runs `git status` in your project every 15 seconds and right after Claude runs a command or writes a file. A checked-out commit shows as `detached`; `↑ N to push` copies `git push`, `↓ N to pull` opens the commits page.
 - **Ideas and change requests** are saved per project and survive across sessions (plugin store on your machine). Two sessions saving at once keep each other's ideas. Click an idea's text to put it into the prompt box (clipboard if the box is not reachable); the status button cycles open, running, done.
 - **Commands:** `/cockpit [home|files|agents|calls|meter|errors|todo|project|usage]` (an unknown tab is named in the reply, the pane opens anyway), `/idea <text>`, `/change <text>` (change request).
 
 ## Tabs in detail
 
-- **Overview:** one tile per tab with its most important number (changed files, running subagents, tool calls, context percent, errors, open todos, open ideas). Anything red (context or limit from 85 %, errors above 0) also appears in an attention card at the top with an `open ›` button. Without anything red the card says "All calm".
+- **Overview:** one tile per tab (Usage has none) with its most important number (changed files, running subagents, tool calls, context percent, errors, open todos, open ideas). Anything red (context or limit from 85 %, errors above 0) also appears in an attention card at the top with an `open ›` button. Without anything red the card says "All calm".
 - **Files:** every file Claude read, wrote or edited in the session, grouped by folder, with how often, lines added and whether a subagent did it. `Clear` empties the list. Three tiles show changed files, read files and lines added; filters switch between all, changed and read-only files.
 - **Subagents:** every subagent with type, description, status (running, done, failed), run time, number of tool calls and its last tool. `List` and `Tree` buttons switch between a flat list and a tree that shows who started whom. A small animated worker shows while one runs (a text mark in the terminal).
 - **Tool calls:** the calls of the session as a timeline, newest at the bottom, in fixed columns: status, tool, argument, time. Equal calls in a row are grouped. A click opens the full arguments, the note of a failed or refused call and the subagent that made it. Filters: all, errors, Bash, files, agents. `Clear` empties the list, `↓ Newest` scrolls to the end.
 - **Instruments:** context window fill (percent, tokens), the 5-hour limit and the 7-day limit as meters, the session cost in dollars, the cache hit rate and the latest turns with time and tokens. Without a subscription no limits are reported and those meters stay empty.
-- **Errors:** three tiles (failed calls, by subagents, tools) and the failed tool calls as cards with the tool, the time, the argument and the error note, newest first, so you do not scroll the timeline for them. Without failures it says "All calm".
+- **Errors:** three tiles (failed calls, by subagents, tools) and the failed tool calls as cards with the tool, the time, the argument and the error note (the newest 15, newest at the bottom), so you do not scroll the timeline for them. Without failures it says "All calm".
 - **Todo:** the open items of `todo.md` in the project root (any capitalisation) as a checklist. `- [ ]`, `* [ ]`, `1. [ ]` and plain bullets count, headings become sections, indented entries stay indented, `[x]` entries are not shown. A click ticks an entry and removes its line and the indented lines below it from the file; `↶ undo` puts the last one back for the session. `+ add` appends a new entry. Below it the markers TODO, FIXME, HACK and XXX found in the project's code, with file, line and text; a click shows the file in the file manager, it never opens or runs it. Binary, lock, minified files, `todo.md` itself and prose documents (`.md`, `.txt`, `.rst`) are skipped. Without git the files Claude wrote in this session are scanned instead.
 - **Project:** project name, folder, detected stack (Next.js, WordPress, Node, PHP, Docker) and the scripts of `package.json`. Below it ideas and change requests, saved per project across sessions in the plugin store (two sessions saving at once keep each other's entries). A click on the text of an entry puts it into the prompt box (clipboard if the box is not reachable); the status button cycles open, running, done; `Delete` removes it.
+- **Usage:** see [Usage tab](#usage-tab) below.
 
 ## Turn tabs off one by one
 
@@ -24,14 +25,14 @@ Every tab and the git band can be switched on and off on its own: open `/config`
 
 | Switch | Effect |
 |---|---|
-| `show_home`, `show_files`, `show_agents`, `show_calls`, `show_meter`, `show_errors`, `show_todo`, `show_project`, `show_usage` | Shows or hides the tab and its tile on the Overview |
+| `show_home`, `show_files`, `show_agents`, `show_calls`, `show_meter`, `show_errors`, `show_todo`, `show_project`, `show_usage` | Shows or hides the tab and its tile on the Overview (Usage has no tile) |
 | `markers` | Comma separated words the Todo tab looks for in the project (default `TODO,FIXME,HACK,XXX`); Markdown marks in the shown text are dropped |
 | `sessionFiles` | Todo tab, project without git: also scan the files Claude wrote or edited in this session |
 | `show_gitband` | Shows or hides the git band above the prompt |
 
 All are on by default. A tab that is switched off is only hidden: the cockpit keeps counting, and `/idea` and `/change` keep saving. The exception is Usage: with `show_usage` off nothing is counted.
 
-Install: `claude plugin install bro-cockpit@desktop-claude-code-mods`. More in the [main README](../../README.md).
+Installation: `claude plugin install bro-cockpit@desktop-claude-code-mods`, details in the [main README](../../README.md).
 
 Limits: the pane only shows what happens in the current session. Commands and error messages are redacted by known secret patterns before they are stored, which is a helper and not guaranteed protection.
 
@@ -50,4 +51,4 @@ Counts what you use, to decide which skills, plugins and connectors to remove. F
 - **Context:** everything installed with a rough token estimate (name plus description, about 4 characters a token) and its use count. `0×` in yellow costs context and is never used. Plugins add up their skills and servers.
 - **Tools:** built-in tools (Bash, Read, Edit, and so on): calls, failed calls (`✗`), calls refused by a hook (`⊘`) and average time, for this session or all sessions.
 
-`↻ Refresh` (Unused and Context) re-reads what is installed; the tab also does it at session start. `Reset all` (all sessions) asks a second time before it clears the stored counts. Counting starts when the tab is on, so a new entry can look unused for a while. Skills and prompt commands are listed; commands a plugin registers in code are left out, and a plugin with only hooks never shows. Counts are kept in memory per call and written to the store once per turn and at the end of the session, so a crash can lose the last turn. At most 300 counts, 200 skills, 200 connectors, 200 plugins and 80 tools are kept; only names and numbers are stored, never arguments or output.
+`↻ Refresh` (Unused and Context) re-reads what is installed; the tab also does it at session start. `Reset all` (all sessions) asks a second time before it clears the stored counts. Counting starts when the tab is on, so a new entry can look unused for a while. Skills and prompt commands are listed; commands a plugin registers in code are left out, and a plugin with only hooks never shows. Counts are kept in memory per call and written to the store once per turn, after 40 waiting counts and at the end of the session, so a crash can lose the last turn. At most 300 used skills, plugins and connectors together, 80 tools and 200 installed items of each kind are kept; only names and numbers are stored, never arguments or output.

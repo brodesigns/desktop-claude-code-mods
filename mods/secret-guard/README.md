@@ -15,4 +15,4 @@ The message names only the kind of secret, never the value. A match is blocked o
 
 **Limits:** the guard is a safety net, not a guarantee. It reads the text of one tool call at a time, so these pass: values that are encoded (`echo <base64> | base64 -d > .env`), split or concatenated (`"s" + "k-" + ...`), assembled over several edits that each stay short, and anything written by a tool outside its matcher (an MCP file tool, PowerShell). Passwords shorter than eight characters, unknown token formats and values read from variables (`$TOKEN`) pass on purpose or by design. Input you type yourself in the terminal and files written by other programs are not seen by the guard. A block repeats on every attempt, so if a harmless line is blocked, remove the value-like part or build it from parts.
 
-Installation: `claude plugin install secret-guard@desktop-claude-code-mods`, details in `../../README.md`.
+Installation: `claude plugin install secret-guard@desktop-claude-code-mods`, details in the [main README](../../README.md).

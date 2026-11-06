@@ -11,12 +11,14 @@ Every mod is its own plugin. You add the marketplace once, then add only the mod
    brodesigns/desktop-claude-code-mods
    ```
 
-3. **Add the mods you want.** The marketplace lists all 15. Start with one or two (see the table below).
+3. **Add the mods you want.** The marketplace lists 7. Start with one or two (see the table below).
 4. **Try it.** Type the mod's command in the prompt box, for example `/cockpit`. A pane opens next to the chat, a band shows above the prompt.
 
 `/plugin` does not run in the desktop app, so the steps above are done in the Plugins screen. The exact button names can differ between app versions.
 
 ## Which mod first
+
+Start small: `bro-cockpit` and `secret-guard` cover most needs.
 
 | You want | Add | Try |
 |---|---|---|
@@ -37,7 +39,7 @@ All commands and settings of each mod are in its README under `mods/<name>/`.
 
 ## Update
 
-An installed mod only updates when its version in the marketplace is newer. The README lists the terminal commands:
+An installed mod only updates when its version in the marketplace is newer. In a terminal:
 
 ```bash
 claude plugin marketplace update desktop-claude-code-mods
@@ -53,4 +55,4 @@ Restart afterwards. What changed in each version is in [CHANGELOG.md](../CHANGEL
 
 ## What the mods access
 
-They run no programs except `git` (some mods), and `open` or `xdg-open` on a click. Saved data (ideas, prompts, usage counts, permission log) stays on your machine in the Claude Code plugin store. No mod sends data to a model. Details: [Security and privacy](../README.md#limits-and-security).
+They run no programs except `git` (`bro-cockpit`, `branch-guard-band`) and `open` or `xdg-open` on a click. Saved data (ideas, prompts, usage counts, permission log) stays on your machine in the Claude Code plugin store. No mod sends data to a model. Details: [Security and privacy](../README.md#limits-and-security).
