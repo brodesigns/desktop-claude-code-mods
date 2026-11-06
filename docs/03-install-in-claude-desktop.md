@@ -53,4 +53,4 @@ Restart afterwards. What changed in each version is in [CHANGELOG.md](../CHANGEL
 
 ## What the mods access
 
-They run no programs except `git` (some mods), and `open` or `xdg-open` on a click. Saved data (ideas, prompts, usage counts, permission log) stays on your machine in the Claude Code plugin store. No mod sends data to a model. Details: [Security and privacy](../README.md#security-and-privacy).
+They run no programs except `git` (some mods), and `open` or `xdg-open` on a click. Saved data (ideas, prompts, usage counts, permission log) stays on your machine in the Claude Code plugin store. No mod sends data to a model. Details: [Security and privacy](../README.md#limits-and-security).
