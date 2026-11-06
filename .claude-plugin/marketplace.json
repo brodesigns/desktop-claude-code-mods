@@ -8,77 +8,92 @@
     {
       "name": "bro-cockpit",
       "source": "./mods/bro-cockpit",
-      "description": "Dashboard pane with overview, files, subagent tree, tool calls, context and rate limit meter, errors and project ideas, plus a git band above the prompt; every tab can be switched off"
+      "description": "Dashboard: a pane next to the chat with overview, files, subagents, tool calls, context meter, errors, todos and project ideas, plus a git line above the prompt. Open with /cockpit.",
+      "category": "dashboard"
     },
     {
       "name": "secret-guard",
       "source": "./mods/secret-guard",
-      "description": "Blocks API keys, tokens, private keys and plaintext passwords in Write, Edit, MultiEdit, NotebookEdit and Bash"
+      "description": "Guard: stops Claude from writing API keys, tokens, private keys and passwords into files or shell commands. Works in the background, no screen.",
+      "category": "guard"
     },
     {
       "name": "branch-guard-band",
       "source": "./mods/branch-guard-band",
-      "description": "Band above the prompt: red warning when you work directly on a protected branch such as main or master. Display only, blocks nothing"
+      "description": "Band above the prompt: red warning when you work directly on main or master. Only warns, blocks nothing.",
+      "category": "band"
     },
     {
       "name": "env-band",
       "source": "./mods/env-band",
-      "description": "Band above the prompt: shows the active environment (NODE_ENV, APP_ENV or ENV from the project's .env files) and which .env files exist. Shows and stores no other values"
+      "description": "Band above the prompt: shows the active environment (development, staging, production) from your .env files.",
+      "category": "band"
     },
     {
       "name": "limit-band",
       "source": "./mods/limit-band",
-      "description": "Band above the prompt: the 5-hour limit with its reset countdown (always shown) and the 7-day limit above a threshold"
+      "description": "Band above the prompt: how much of your 5-hour and 7-day usage limit is used and when it resets.",
+      "category": "band"
     },
     {
       "name": "deadline-band",
       "source": "./mods/deadline-band",
-      "description": "Band above the prompt: countdown to the project deadline, set with /deadline <date> [text], colored by urgency"
+      "description": "Band above the prompt: countdown to your project deadline. Set it with /deadline.",
+      "category": "band"
     },
     {
       "name": "daily-band",
       "source": "./mods/daily-band",
-      "description": "Band above the prompt: today's working time, cost, turns and commits, added up across all sessions of the day"
+      "description": "Band above the prompt: today's working time, cost, turns and commits across all sessions.",
+      "category": "band"
     },
     {
       "name": "prompt-library",
       "source": "./mods/prompt-library",
-      "description": "Prompt library: saved prompts for all projects or just this one, with search and placeholders, inserted into the prompt box with /p"
+      "description": "Pane: save prompts once and reuse them in every project, with placeholders. Open with /prompts.",
+      "category": "pane"
     },
     {
       "name": "snippet-pane",
       "source": "./mods/snippet-pane",
-      "description": "Code snippets per project: save with /snippet, pane with language, preview, insert and copy; secrets are redacted"
+      "description": "Pane: save code snippets per project and insert them into the prompt box. Open with /snippets.",
+      "category": "pane"
     },
     {
       "name": "session-summary",
       "source": "./mods/session-summary",
-      "description": "Pane with a very short running summary of the session in a language you choose, written by Haiku in small batches while the pane is open from a short digest of each turn. The one mod that spends a little model tokens and sends redacted session excerpts to the model"
+      "description": "Pane: a very short running summary of the session. Uses a few model tokens (Haiku). Open with /summary.",
+      "category": "pane"
     },
     {
       "name": "kanban-pane",
       "source": "./mods/kanban-pane",
-      "description": "Small kanban board per project with open, in progress and done columns: add cards by command, move and delete them in the pane"
+      "description": "Pane: a small Open / In progress / Done board per project. Open with /kanban, add cards with /card.",
+      "category": "pane"
     },
     {
       "name": "log-viewer",
       "source": "./mods/log-viewer",
-      "description": "Pane with the output of the latest Bash calls in this session: command, exit status, duration, output with errors and warnings highlighted, filter and search"
+      "description": "Pane: output of the last shell commands with errors highlighted. Open with /logs.",
+      "category": "pane"
     },
     {
       "name": "dependency-pane",
       "source": "./mods/dependency-pane",
-      "description": "Pane with the project's dependencies from package.json, requirements.txt, pyproject.toml and composer.json, checked with npm outdated at the push of a button"
+      "description": "Pane: your project's dependencies and which are outdated (npm). Open with /deps.",
+      "category": "pane"
     },
     {
       "name": "usage-pane",
       "source": "./mods/usage-pane",
-      "description": "Pane that counts which skills, plugins, connectors (MCP servers) and built-in tools are used, lists what is installed but unused, and estimates the context cost of each, to find what is worth removing"
+      "description": "Pane: which skills, plugins and connectors you actually use, what is unused, and what each costs in context. Open with /toolusage.",
+      "category": "pane"
     },
     {
       "name": "permission-log",
       "source": "./mods/permission-log",
-      "description": "Pane that logs which permission prompts you allowed or declined, shows the ones you keep allowing, and copies a ready allow rule for them"
+      "description": "Pane: which permission prompts you allowed or declined, and a ready allow rule for the ones you always allow. Open with /permlog.",
+      "category": "pane"
     }
   ]
 }

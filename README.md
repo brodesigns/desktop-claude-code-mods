@@ -23,46 +23,161 @@
 
 ## All 15 mods
 
-One marketplace, 15 mods: **1 dashboard, 1 guard hook, 5 bands, 8 panes**. Every mod is its own plugin, so you install only the ones you want. Each has its own README in `mods/<name>/` with all commands and settings.
+One marketplace, 15 mods: **1 dashboard, 1 guard, 5 bands, 8 panes**. Every mod is its own plugin, so you install only the ones you want. A **pane** opens next to the chat, a **band** is one line above the prompt, a **guard** works in the background.
 
-### Dashboard (1)
+| Kind | Mods |
+|---|---|
+| Dashboard | `bro-cockpit` |
+| Guard | `secret-guard` |
+| Bands (above the prompt) | `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band` |
+| Panes (next to the chat) | `prompt-library`, `snippet-pane`, `session-summary`, `kanban-pane`, `log-viewer`, `dependency-pane`, `usage-pane`, `permission-log` |
 
-| Mod | What it does | Command |
-|---|---|---|
-| [`bro-cockpit`](mods/bro-cockpit) | Dashboard pane with eight tabs (overview, files read and changed, subagent tree, tool calls, context and rate limit meter, errors, todo.md checklist and code markers, project ideas) plus a git band above the prompt | `/cockpit`, `/idea`, `/change` |
+### Dashboard
 
-### Guard hook (1)
+#### `bro-cockpit`: one pane that shows what is happening in the session
 
-| Mod | What it does | Command |
-|---|---|---|
-| [`secret-guard`](mods/secret-guard) | Blocks API keys, tokens, private keys and plaintext passwords in `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash`. No interface | none |
+Answers "what is going on right now?" at a glance. Eight tabs: Overview, Files (read and changed), Subagents, Tool calls, Instruments (context window, 5-hour limit, cost), Errors, Todo (your `todo.md` and TODO/FIXME markers in code) and Project (stack, scripts, ideas and change requests saved per project). It also adds a git line above the prompt. Every tab can be switched off.
 
-### Bands above the prompt (5, plus the git band of the cockpit)
+- **You see:** a pane with tabs next to the chat, and a git line (branch, uncommitted changes, commits to push or pull) above the prompt.
+- **Command:** `/cockpit`, `/idea <text>`, `/change <text>`
+- **Install:** `claude plugin install bro-cockpit@desktop-claude-code-mods`
+- **Details:** [mods/bro-cockpit/README.md](mods/bro-cockpit/README.md) and [Screenshots](#screenshots)
+
+### Guard
+
+#### `secret-guard`: stops secrets from being written
+
+Blocks Claude's file edits and shell commands when they would write an API key, token, private key or plaintext password. Placeholders and variable references pass. Install it once; it needs no other mod.
+
+- **You see:** nothing, until it blocks a call with a short message that names the kind of secret, never the value.
+- **Command:** none
+- **Install:** `claude plugin install secret-guard@desktop-claude-code-mods`
+- **Details:** [mods/secret-guard/README.md](mods/secret-guard/README.md)
+
+### Bands above the prompt
 
 Bands appear only when there is something to show, and they stack.
 
-| Mod | What it shows | Command |
-|---|---|---|
-| [`branch-guard-band`](mods/branch-guard-band) | Red warning when you work directly on a protected branch such as `main` or `master`. Display only, blocks nothing | none |
-| [`env-band`](mods/env-band) | The active environment (`NODE_ENV`, `APP_ENV` or `ENV` from the project's `.env` files) and which `.env` files exist, never their other values | none |
-| [`daily-band`](mods/daily-band) | Today's working time, cost, turns and commits, added up across all sessions of the day | none |
-| [`deadline-band`](mods/deadline-band) | Countdown to the project deadline, colored by urgency | `/deadline <date> [text]` |
-| [`limit-band`](mods/limit-band) | 5 hour usage limit with a countdown to the reset (always shown) and the 7 day limit above a threshold | none |
+#### `branch-guard-band`: warns when you work on main
 
-The git band (project, branch, uncommitted changes, commits to push or pull) belongs to `bro-cockpit` and has its own switch.
+Warns you when you work directly on a protected branch such as `main` or `master`. Display only, it blocks nothing.
 
-### Panes next to the chat (8, plus the cockpit)
+- **You see:** a red `Working directly on main` line; a click copies `git switch -c`.
+- **Command:** none
+- **Install:** `claude plugin install branch-guard-band@desktop-claude-code-mods`
+- **Details:** [mods/branch-guard-band/README.md](mods/branch-guard-band/README.md)
 
-| Mod | What it shows | Command |
-|---|---|---|
-| [`prompt-library`](mods/prompt-library) | Saved prompts for all projects or just this one, with placeholders, inserted into the prompt box | `/prompts`, `/p`, `/prompt-save` |
-| [`snippet-pane`](mods/snippet-pane) | Code snippets per project, one line each, with insert, copy and delete; secrets are redacted | `/snippets`, `/snippet` |
-| [`session-summary`](mods/session-summary) | Very short running summary of the session in a language you choose, written by Haiku in small batches while its pane is open. The one mod that spends (few) model tokens and sends redacted session excerpts to the model | `/summary` |
-| [`kanban-pane`](mods/kanban-pane) | Small kanban board per project with Open, In progress and Done | `/kanban`, `/card` |
-| [`log-viewer`](mods/log-viewer) | Output of the latest Bash calls in this session: command, exit status, duration, highlighted errors and warnings, filter and search | `/logs` |
-| [`dependency-pane`](mods/dependency-pane) | Dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`, checked with `npm outdated` at the push of a button | `/deps` |
-| [`usage-pane`](mods/usage-pane) | Counts which skills, plugins, connectors (MCP servers) and built-in tools are used, lists what is installed but unused, and estimates the context cost of each, to find what is worth removing | `/toolusage` |
-| [`permission-log`](mods/permission-log) | Logs which permission prompts you allowed or declined, shows the ones you keep allowing and copies a ready allow rule for them | `/permlog` |
+#### `env-band`: shows the active environment
+
+Shows which environment your project uses (`development`, `staging`, `production`) from the `.env` files, and which `.env` files exist. It shows no other value from them.
+
+- **You see:** e.g. `development .env.local .env`, red for production.
+- **Command:** none
+- **Install:** `claude plugin install env-band@desktop-claude-code-mods`
+- **Details:** [mods/env-band/README.md](mods/env-band/README.md)
+
+#### `daily-band`: today's totals across sessions
+
+Adds up today's working time, cost, turns and commits over all sessions of the day.
+
+- **You see:** e.g. `Today 2 h 10 min, about $4.20, 38 turns, 5 commits`; a click copies it.
+- **Command:** none
+- **Install:** `claude plugin install daily-band@desktop-claude-code-mods`
+- **Details:** [mods/daily-band/README.md](mods/daily-band/README.md)
+
+#### `deadline-band`: countdown to your deadline
+
+Counts down to the deadline of the current project, colored by urgency. The deadline is kept per project.
+
+- **You see:** e.g. `Release in 3 days 4 h`.
+- **Command:** `/deadline <date> [text]`, `/deadline off`
+- **Install:** `claude plugin install deadline-band@desktop-claude-code-mods`
+- **Details:** [mods/deadline-band/README.md](mods/deadline-band/README.md)
+
+#### `limit-band`: your usage limit
+
+Shows how much of the 5-hour limit (always) and the 7-day limit (above a threshold) is used, and when it resets. Needs a subscription; with an API key Claude Code reports no limits.
+
+- **You see:** e.g. `5h 72%, resets in 1 h 23 min`, yellow from 80%, red from 95%.
+- **Command:** none
+- **Install:** `claude plugin install limit-band@desktop-claude-code-mods`
+- **Details:** [mods/limit-band/README.md](mods/limit-band/README.md)
+
+The git line of `bro-cockpit` is a band as well and has its own switch.
+
+### Panes next to the chat
+
+#### `prompt-library`: save prompts once, reuse them everywhere
+
+A library of prompts you reuse. Save one for all projects or just this one, with placeholders like `{{file}}`, and put it into the prompt box with one click. Search included.
+
+- **You see:** a list with one line per prompt.
+- **Command:** `/prompts`, `/p <name>`, `/prompt-save <name>: <text>`
+- **Install:** `claude plugin install prompt-library@desktop-claude-code-mods`
+- **Details:** [mods/prompt-library/README.md](mods/prompt-library/README.md)
+
+#### `snippet-pane`: code snippets per project
+
+Keeps short commands and pieces of code per project. Insert one into the prompt box as a code block, copy it or delete it. Keys in a snippet are removed before saving.
+
+- **You see:** a list with one line per snippet.
+- **Command:** `/snippets`, `/snippet <title>`
+- **Install:** `claude plugin install snippet-pane@desktop-claude-code-mods`
+- **Details:** [mods/snippet-pane/README.md](mods/snippet-pane/README.md)
+
+#### `session-summary`: a very short running summary
+
+Writes a few bullet points of what happened in the session, in a language you choose. It is **the one mod that uses model tokens** (a small model, in cheap batches, only while its pane is open) and it can be switched off.
+
+- **You see:** two to five bullet points and a line with the turns covered.
+- **Command:** `/summary`
+- **Install:** `claude plugin install session-summary@desktop-claude-code-mods`
+- **Details:** [mods/session-summary/README.md](mods/session-summary/README.md)
+
+#### `kanban-pane`: a small board per project
+
+A board with Open, In progress and Done for the current project. Add cards with a command, move them on with one click.
+
+- **You see:** three columns with one line per card.
+- **Command:** `/kanban`, `/card <text>`
+- **Install:** `claude plugin install kanban-pane@desktop-claude-code-mods`
+- **Details:** [mods/kanban-pane/README.md](mods/kanban-pane/README.md)
+
+#### `log-viewer`: output of the last shell commands
+
+Shows the last Bash calls of the session with status, duration and output. Errors are red, warnings yellow, and you can filter and search.
+
+- **You see:** a list of commands; the newest is open.
+- **Command:** `/logs`
+- **Install:** `claude plugin install log-viewer@desktop-claude-code-mods`
+- **Details:** [mods/log-viewer/README.md](mods/log-viewer/README.md)
+
+#### `dependency-pane`: your project's dependencies
+
+Lists the dependencies from `package.json`, `requirements.txt`, `pyproject.toml` and `composer.json`. A button runs `npm outdated` and marks what is behind.
+
+- **You see:** folded groups with one row per package.
+- **Command:** `/deps`
+- **Install:** `claude plugin install dependency-pane@desktop-claude-code-mods`
+- **Details:** [mods/dependency-pane/README.md](mods/dependency-pane/README.md)
+
+#### `usage-pane`: what you use, what you do not, and what it costs
+
+Counts which skills, plugins, connectors (MCP servers) and built-in tools you really use, lists what is installed but never used, and estimates what each costs in context. Use it to decide what to remove.
+
+- **You see:** four views: Used, Unused, Context, Tools.
+- **Command:** `/toolusage`
+- **Install:** `claude plugin install usage-pane@desktop-claude-code-mods`
+- **Details:** [mods/usage-pane/README.md](mods/usage-pane/README.md)
+
+#### `permission-log`: stop answering the same prompt
+
+Logs which permission prompts you allowed or declined. For prompts you keep allowing it offers the rule Claude Code itself suggests, ready to copy into your settings. It changes no settings itself.
+
+- **You see:** a list of rules with allowed and declined counts.
+- **Command:** `/permlog`
+- **Install:** `claude plugin install permission-log@desktop-claude-code-mods`
+- **Details:** [mods/permission-log/README.md](mods/permission-log/README.md)
 
 ## Contents
 
@@ -71,7 +186,6 @@ The git band (project, branch, uncommitted changes, commits to push or pull) bel
 - [What are Claude Code mods?](#what-are-claude-code-mods)
 - [bro-cockpit: dashboard for Claude Code](#bro-cockpit-dashboard-for-claude-code)
 - [secret-guard: stop Claude Code from writing secrets](#secret-guard-stop-claude-code-from-writing-secrets)
-- [Bands and panes](#bands-and-panes)
 - [Screenshots](#screenshots)
 - [Install Claude Code mods](#install-claude-code-mods)
 - [Turn mods or parts off](#turn-mods-or-parts-off)
@@ -107,10 +221,6 @@ It adapts to narrow panes, works in light and dark mode and falls back to text w
 ## secret-guard: stop Claude Code from writing secrets
 
 Blocks tool calls that would write credentials in plaintext: OpenAI-style, Stripe, Google, AWS, GitLab and npm keys, GitHub and Slack tokens, JSON web tokens, bearer tokens, PEM private keys, passwords inside URLs, and assignments such as `password = "..."`, `DB_PASSWORD=...` or `export API_KEY=...`. Placeholders (`YOUR_TOKEN_HERE`), references to variables (`${API_KEY}`, `process.env.KEY`) and plain words pass. The message names only the kind of secret, never the value. If the guard itself fails, the call is blocked. It is a safety net, not a guarantee.
-
-## Bands and panes
-
-The bands are small status lines above the prompt. Each one hides itself when it has nothing to say, so several can be installed at once without cluttering the prompt. The panes open next to the chat with their own slash command and keep their data (prompts, snippets, cards) per project in the plugin store on your machine. Details, commands and settings for each one are in its README under `mods/<name>/`.
 
 ## Screenshots
 
