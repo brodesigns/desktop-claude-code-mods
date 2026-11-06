@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Board, KanbanCard, KanbanNote } from '../types'
-import { asCards, capDone, COLUMNS, inColumn, parseCards, splitDone, step } from './board'
+import { asCards, capDone, COLUMN_CAP, COLUMNS, inColumn, parseCards, splitDone, step } from './board'
 import { redactCounted } from './keys'
 import { isNarrow } from './layout'
 import { projectOf } from './project'
@@ -17,6 +17,8 @@ const lastNote = atom({ plugin: 'kanban-pane', key: 'kanbanNote' } as const, nul
 // Whether the field for a new card is open; closed, the pane is just the board.
 const creating = atom({ plugin: 'kanban-pane', key: 'kanbanNew' } as const, false)
 const openIds = atom({ plugin: 'kanban-pane', key: 'kanbanOpen' } as const, [])
+// Columns whose cap is lifted ("+N more" pressed); reset when the project changes.
+const expanded = atom({ plugin: 'kanban-pane', key: 'kanbanExpanded' } as const, [])
 
 // How long the note about the last action stays visible.
 const NOTE_MS = 8000
@@ -32,6 +34,7 @@ async function ensure($: EngineInterface, force = false): Promise<Board> {
   const { project, key } = projectOf(root, 'kanban')
   const fresh: Board = { root, project, key, cards: asCards(await $.store.get(key)) }
   await update($, board, () => fresh)
+  if ((await read($, expanded)).length > 0) await update($, expanded, () => [])
 
   return fresh
 }
@@ -158,6 +161,7 @@ export async function view($: EngineInterface, e: RenderInput) {
   const isOldShown = await read($, showOld)
   const isCreating = await read($, creating)
   const open = await read($, openIds)
+  const wide = await read($, expanded)
   const now = await $.clock.now()
 
   if (data === null) return emptyState(ui, 'loading', '▦', 'Loading board …')
@@ -200,7 +204,11 @@ export async function view($: EngineInterface, e: RenderInput) {
   // A section line (`○ Open  3`) and its cards, stacked.
   const section = (col: (typeof COLUMNS)[number]) => {
     const all = inColumn(data.cards, col.id)
-    const shown = col.id === 'done' && !isOldShown ? done.recent : all
+    const pool = col.id === 'done' && !isOldShown ? done.recent : all
+    // The cap only limits what is drawn; every card stays in the store and in the counts.
+    const isWide = wide.includes(col.id)
+    const shown = isWide ? pool : pool.slice(0, COLUMN_CAP)
+    const hidden = pool.length - shown.length
 
     return (
       <Box key={`col-${col.id}`} flexDirection="column" gap={SPACE.tight} minWidth={0} overflow="hidden">
@@ -217,6 +225,8 @@ export async function view($: EngineInterface, e: RenderInput) {
           />
         )}
         {shown.map(row)}
+        {hidden > 0 && <Button key={`more-${col.id}`} label={`+${hidden} more`} variant="secondary" onPress={() => update($, expanded, ids => [...ids, col.id])} />}
+        {isWide && pool.length > COLUMN_CAP && <Button key={`less-${col.id}`} label="▴ show fewer" variant="secondary" onPress={() => update($, expanded, ids => ids.filter(i => i !== col.id))} />}
       </Box>
     )
   }

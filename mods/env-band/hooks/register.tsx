@@ -78,8 +78,8 @@ async function refresh($: EngineInterface) {
 
 async function start($: EngineInterface) {
   timer?.cancel()
-  timer = $.clock.every(POLL_MS, () => void refresh($))
-  void refresh($)
+  timer = $.clock.every(POLL_MS, () => { refresh($).catch(() => undefined) })
+  refresh($).catch(() => undefined)
 }
 
 // A click shows the file in the file manager (never opens its content). macOS reveals the file itself;
@@ -99,7 +99,7 @@ async function reveal($: EngineInterface, file: string) {
   } catch {
     // No opener at all.
   }
-  void $.ui.toast(`Could not open ${root}`)
+  $.ui.toast(`Could not open ${root}`)
 }
 
 export const register: Register = (on, options) => {

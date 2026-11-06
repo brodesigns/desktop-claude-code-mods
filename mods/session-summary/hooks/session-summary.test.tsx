@@ -282,7 +282,7 @@ test('the language: default English, a setting, a safe name; the instruction is 
   expect(systemFor('German')).toContain('Write the summary in German.')
 })
 
-test('the setting language reaches the model; the pane button switches it, keeps it and rewrites the summary', { options: { language: 'German' } }, async ($, on) => {
+test('the setting language reaches the model; the pane button switches it and keeps it without a model call', { options: { language: 'German' } }, async ($, on) => {
   const seen: { model: string; prompt: string; system?: string }[] = []
   const clock = world(on, ['- Anmeldung repariert', '- Login fixed\n- Test added'], seen)
   await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
@@ -290,20 +290,18 @@ test('the setting language reaches the model; the pane button switches it, keeps
   await finish($ as never, clock, 'done')
   expect(seen[0]?.system).toContain('Write the summary in German.')
 
-  // The button goes on in the list: German -> French; the summary is written again in it.
+  // The button goes on in the list: German -> French; no model call.
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 80 }, surface: 'desktop' })
   expect((await ui.find({ type: 'Button', text: /^German$/ })) != null).toBe(true)
   await ui.press({ key: 'language' })
   await clock.advance(0)
   expect(storedLang.value).toBe('French')
-  expect(seen.length).toBe(2)
-  expect(seen[1]?.system).toContain('Rewrite the bullet points of the summary in French')
-  expect(seen[1]?.prompt).toContain('Anmeldung repariert')
+  // Several clicks, still no call.
+  await ui.press({ key: 'language' })
+  await ui.press({ key: 'language' })
+  await clock.advance(0)
+  expect(seen.length).toBe(1)
   await ui.unmount()
-
-  // The next turn writes in French.
-  await $.prompt.submit({ text: 'more' } as never)
-  await finish($ as never, clock, 'done again')
 })
 
 test('a saved language choice holds in a new session and wins over the setting', async ($, on) => {

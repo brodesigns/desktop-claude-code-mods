@@ -101,9 +101,10 @@ const REFUSAL: Record<string, string> = { no_composer: 'this surface does not le
 const why = (refusal: string | undefined) => (refusal === undefined ? 'refused' : (REFUSAL[refusal] ?? refusal))
 
 // The pane's "use": the prompt box first, the clipboard second, the full text in the card last.
-async function usePrompt($: EngineInterface, p: Prompt, surface: RenderSurface) {
+async function usePrompt($: EngineInterface, p: Prompt, surface: RenderSurface, hasInput: boolean) {
   const holes = placeholders(p.text)
-  if (holes.length > 0 && (await read($, openId)) !== p.id) {
+  // Without input fields there is nothing to wait for: the text goes in with its holes open (see `/p <name> value | value`).
+  if (holes.length > 0 && hasInput && (await read($, openId)) !== p.id) {
     await update($, openId, () => p.id)
     await say($, `"${p.name}" has placeholders: enter the values and press "use" again. Empty ones stay as {{…}}.`, 'warning')
     return
@@ -213,6 +214,9 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => view($, e))
 }
 
+// Where the surface draws no input field, the values go through the command instead.
+export const holeHint = (name: string, holes: string[]) => `No input field here. Fill ${holes.map(h => `{{${h}}}`).join(', ')} with /p ${name} ${holes.map(() => 'value').join(' | ')}.`
+
 // The search field only appears from this many prompts on; a short list needs none.
 const SEARCH_FROM = 6
 
@@ -253,7 +257,7 @@ export async function view($: EngineInterface, e: RenderInput) {
             </Button>
           </Box>
           <Box flexShrink={0}>
-            <Button key={`use-${hid}`} plain onPress={press => usePrompt($, p, press.surface)}>
+            <Button key={`use-${hid}`} plain onPress={press => usePrompt($, p, press.surface, hasInput)}>
               <Text size={TYPE.body} color="#39639E" weight="semibold">↳</Text>
             </Button>
           </Box>
@@ -275,6 +279,9 @@ export async function view($: EngineInterface, e: RenderInput) {
                   />
                 ))}
               </Box>
+            )}
+            {holes.length > 0 && !hasInput && (
+              <Text key={`holes-hint-${hid}`} size={TYPE.label} dimColor wrap="wrap">{holeHint(p.name, holes)}</Text>
             )}
             {actions(ui, `act-${hid}`, [
               <Button key={`copy-${hid}`} label="⧉ copy" variant="secondary" onPress={press => copyPrompt($, p, press.surface)} />,

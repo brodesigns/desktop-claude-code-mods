@@ -3,6 +3,8 @@ import type { Column, KanbanCard } from '../types'
 export const TEXT_MAX = 300
 export const DAY_MS = 86_400_000
 export const DONE_MAX = 200
+// Cards drawn per column before a "+N more" row; the rest stays in the store.
+export const COLUMN_CAP = 30
 
 export const COLUMNS: readonly { id: Column; label: string; mark: string }[] = [
   { id: 'open', label: 'Open', mark: '○' },

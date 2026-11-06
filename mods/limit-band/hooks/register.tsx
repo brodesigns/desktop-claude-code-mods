@@ -61,7 +61,7 @@ async function openUrl($: EngineInterface, url: string) {
       // This opener is not there; the next one tries.
     }
   }
-  void $.ui.toast(`Could not open ${url}`)
+  $.ui.toast(`Could not open ${url}`)
 }
 
 const USAGE_URL = 'https://claude.ai/settings/usage'

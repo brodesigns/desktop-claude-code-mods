@@ -235,8 +235,8 @@ export const register: Register = (on, options) => {
           <Box flexShrink={0}><Text color="#39639E" size="caption">▌</Text></Box>
           <Box flexShrink={1} minWidth={0} overflow="hidden">
             <Button key="daily" plain onPress={press => {
-              void $.ui.copy({ text: `Today: ${summary}`, surface: press.surface })
-              void $.ui.toast('Copied today\'s summary')
+              $.ui.copy({ text: `Today: ${summary}`, surface: press.surface }).catch(() => undefined)
+              $.ui.toast('Copied today\'s summary')
             }}>
               <Text size="caption" weight="semibold" wrap="truncate">☀ Today </Text>
               <Text size="caption" dimColor wrap="truncate">{shown.join(' · ')}</Text>

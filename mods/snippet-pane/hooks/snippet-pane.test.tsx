@@ -99,7 +99,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect((await empty.find({ type: 'Text', text: /No snippets for demo yet/ })) != null).toBe(true)
     await empty.unmount()
 
-    store[KEY] = [snip(1, 'Long', 'sh', LONG), snip(2, 'Secret', 'ts', 'const k = "[secret removed]"', 1)]
+    store[KEY] = [snip(1, 'Long', 'sh', LONG), snip(2, 'Secret', 'ts', 'const k = "[secret removed]"', 1), snip(3, 'Fence', 'md', 'a\n```js\nb\n```')]
     await run($, 'snippets', '')
 
     for (const bodyColumns of [36, 90]) {
@@ -119,15 +119,19 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'ins-2' })
     expect(filled[0]).toEqual({ text: '```ts\nconst k = "[secret removed]"\n```\n', mode: 'insert' })
 
+    // A snippet that holds ``` is fenced with a longer fence, so it stays one block.
+    await ui.press({ key: 'ins-3' })
+    expect(filled[1]).toEqual({ text: '````md\na\n```js\nb\n```\n````\n', mode: 'insert' })
+
     await ui.press({ key: 'rm-1' })
-    expect((store[KEY] as { id: number }[]).map(s => s.id)).toEqual([2])
+    expect((store[KEY] as { id: number }[]).map(s => s.id)).toEqual([2, 3])
     expect((await ui.find({ type: 'Text', text: /"Long" deleted/ })) != null).toBe(true)
 
     // The field for a new snippet only exists after "＋ new".
     expect((await ui.find({ type: 'Input' })) == null).toBe(true)
     await ui.press({ key: 'new' })
     await ui.input({ key: 'new-input', text: 'Fresh\nnpm run build' })
-    expect((store[KEY] as { title: string; lang: string }[])[1]).toMatchObject({ title: 'Fresh', lang: 'sh' })
+    expect((store[KEY] as { title: string; lang: string }[])[2]).toMatchObject({ title: 'Fresh', lang: 'sh' })
     // Saved: the field closed, so Enter cannot save it twice.
     expect((await ui.find({ type: 'Input' })) == null).toBe(true)
     await ui.unmount()
