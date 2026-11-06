@@ -20,15 +20,11 @@ Every mod is its own plugin. You add the marketplace once, then add only the mod
 
 | You want | Add | Try |
 |---|---|---|
-| One overview of project, git, files, todos, calls and context | `bro-cockpit` | `/cockpit` |
+| One overview of project, git, files, todos, calls, context and what you use | `bro-cockpit` | `/cockpit` |
 | Secrets never written into files or commands | `secret-guard` | nothing to open, it works in the background |
-| See what you use and what you could remove (skills, plugins, connectors, tools) | `usage-pane` | `/toolusage` |
 | Stop being asked the same safe permission again | `permission-log` | `/permlog` |
-| A small board per project | `kanban-pane` | `/kanban`, `/card <text>` |
-| Saved prompts and code snippets | `prompt-library`, `snippet-pane` | `/prompts`, `/snippets` |
-| Output of the last shell commands, project dependencies | `log-viewer`, `dependency-pane` | `/logs`, `/deps` |
-| A one-line band above the prompt | `branch-guard-band`, `env-band`, `daily-band`, `deadline-band`, `limit-band` | shows by itself |
-| A short running summary of the session | `session-summary` | `/summary` (the only mod that uses a few model tokens) |
+| Saved prompts | `prompt-library` | `/prompts` |
+| A one-line band above the prompt | `branch-guard-band`, `env-band`, `limit-band` | shows by itself |
 
 All commands and settings of each mod are in its README under `mods/<name>/`.
 
@@ -57,4 +53,4 @@ Restart afterwards. What changed in each version is in [CHANGELOG.md](../CHANGEL
 
 ## What the mods access
 
-They run no programs except `git` (some mods), and `open` or `xdg-open` on a click, and `npm outdated` on a button press in `dependency-pane`. Saved data (ideas, prompts, snippets, cards, usage counts, permission log) stays on your machine in the Claude Code plugin store. Only `session-summary` sends data to a model. Details: [Security and privacy](../README.md#security-and-privacy).
+They run no programs except `git` (some mods), and `open` or `xdg-open` on a click. Saved data (ideas, prompts, usage counts, permission log) stays on your machine in the Claude Code plugin store. No mod sends data to a model. Details: [Security and privacy](../README.md#security-and-privacy).

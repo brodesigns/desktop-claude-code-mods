@@ -1,7 +1,7 @@
 {
   "name": "bro-cockpit",
   "version": "0.1.13",
-  "description": "Dashboard pane for Claude Code in the desktop app: overview, files read and changed, subagent tree, tool calls, context and rate limit meter, errors and project ideas, plus a git status band above the prompt",
+  "description": "Dashboard pane for Claude Code in the desktop app: overview, files read and changed, subagent tree, tool calls, context and rate limit meter, errors, project ideas and usage, plus a git status band above the prompt",
   "author": {
     "name": "BroDesigns"
   },

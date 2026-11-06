@@ -1,6 +1,6 @@
 import type { EngineInterface } from 'claude-code'
 
-// Drawing helpers, a slim copy of snippet-pane's. No `$`, no state.
+// Drawing helpers, a slim copy of the cockpit's. No `$`, no state.
 export type Ui = ReturnType<EngineInterface['ui']['resolve']>
 type Children = unknown
 

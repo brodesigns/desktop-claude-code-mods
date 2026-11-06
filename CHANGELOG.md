@@ -1,8 +1,9 @@
 # Changelog
 
-## Usage tab in the cockpit
+## Fewer mods, one cockpit
 
-- `bro-cockpit`: new Usage tab with the views of `usage-pane` (Used, Unused, Context, Tools). `/cockpit usage` opens it, the setting `show_usage` switches it and the counting off. It keeps its own counts; installing `usage-pane` as well counts twice and the numbers are not shared.
+- Removed `usage-pane`, `log-viewer`, `daily-band`, `deadline-band`, `session-summary`, `dependency-pane`, `kanban-pane` and `snippet-pane`. Seven mods remain: `bro-cockpit`, `secret-guard`, `branch-guard-band`, `env-band`, `limit-band`, `prompt-library`, `permission-log`. No mod calls a model any more.
+- `bro-cockpit` 0.1.13: new Usage tab (what is used, never used, what it costs in context, built-in tool statistics). `/cockpit usage` opens it, `show_usage` switches it and the counting off.
 
 ## Fixes for the first ten issues (versions raised)
 

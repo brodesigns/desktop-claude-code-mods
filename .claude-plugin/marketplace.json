@@ -3,12 +3,12 @@
   "owner": {
     "name": "BroDesigns"
   },
-  "description": "Mods for Claude Code in the Claude desktop app: a dashboard pane, bands above the prompt, panes next to the chat and guards",
+  "description": "Mods for Claude Code in the Claude desktop app: a dashboard pane, a few bands above the prompt, a prompt library and guards",
   "plugins": [
     {
       "name": "bro-cockpit",
       "source": "./mods/bro-cockpit",
-      "description": "Dashboard: a pane next to the chat with overview, files, subagents, tool calls, context meter, errors, todos and project ideas, plus a git line above the prompt. Open with /cockpit.",
+      "description": "Dashboard: a pane next to the chat with overview, files, subagents, tool calls, context meter, errors, todos, project ideas and usage, plus a git line above the prompt. Open with /cockpit.",
       "category": "dashboard"
     },
     {
@@ -36,57 +36,9 @@
       "category": "band"
     },
     {
-      "name": "deadline-band",
-      "source": "./mods/deadline-band",
-      "description": "Band above the prompt: countdown to your project deadline. Set it with /deadline.",
-      "category": "band"
-    },
-    {
-      "name": "daily-band",
-      "source": "./mods/daily-band",
-      "description": "Band above the prompt: today's working time, cost, turns and commits across all sessions.",
-      "category": "band"
-    },
-    {
       "name": "prompt-library",
       "source": "./mods/prompt-library",
       "description": "Pane: save prompts once and reuse them in every project, with placeholders. Open with /prompts.",
-      "category": "pane"
-    },
-    {
-      "name": "snippet-pane",
-      "source": "./mods/snippet-pane",
-      "description": "Pane: save code snippets per project and insert them into the prompt box. Open with /snippets.",
-      "category": "pane"
-    },
-    {
-      "name": "session-summary",
-      "source": "./mods/session-summary",
-      "description": "Pane: a very short running summary of the session. Uses a few model tokens (Haiku). Open with /summary.",
-      "category": "pane"
-    },
-    {
-      "name": "kanban-pane",
-      "source": "./mods/kanban-pane",
-      "description": "Pane: a small Open / In progress / Done board per project. Open with /kanban, add cards with /card.",
-      "category": "pane"
-    },
-    {
-      "name": "log-viewer",
-      "source": "./mods/log-viewer",
-      "description": "Pane: output of the last shell commands with errors highlighted. Open with /logs.",
-      "category": "pane"
-    },
-    {
-      "name": "dependency-pane",
-      "source": "./mods/dependency-pane",
-      "description": "Pane: your project's dependencies and which are outdated (npm). Open with /deps.",
-      "category": "pane"
-    },
-    {
-      "name": "usage-pane",
-      "source": "./mods/usage-pane",
-      "description": "Pane: which skills, plugins and connectors you actually use, what is unused, and what each costs in context. Open with /toolusage.",
       "category": "pane"
     },
     {

@@ -8,4 +8,4 @@ labels: enhancement
 
 **What problem it solves for you**
 
-**How you picture it** (a sketch in words is enough; mods cost no model tokens except `session-summary`)
+**How you picture it** (a sketch in words is enough; mods cost no model tokens)

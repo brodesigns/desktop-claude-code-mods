@@ -11,7 +11,6 @@ import { ago, asItems, bump, mcpHits, rank, skillHits } from './usage'
 import type { Hit } from './usage'
 
 // The Usage tab: what is used, what never is and what it costs. Counts skills, plugins, connectors and built-in tools.
-// The same logic as the usage-pane mod, with its own atoms and its own store (the two never share counts).
 const STORE_KEY = 'usage'
 const TOOLS_KEY = 'toolstats'
 
@@ -196,7 +195,6 @@ const NOTES = [
   'Tokens are estimates from names and descriptions (about 4 characters a token). Tool schemas and tools loaded on demand are not counted.',
   'A plugin counts only through its skills and its own MCP servers. A plugin with only hooks never shows.',
   'Refused means refused by a hook. A call you reject at the permission prompt may show as failed.',
-  'The usage-pane mod keeps its own counts. Counts are not shared between the two.',
 ]
 
 type Ui = ReturnType<EngineInterface['ui']['resolve']>
